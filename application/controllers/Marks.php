@@ -1,9 +1,10 @@
 <?php
 
-require_once '/var/www/html/ReportCard/vendor/autoload.php';
+//require_once '/var/www/html/ReportCard/vendor/autoload.php';
+require_once './vendor/autoload.php';
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
-
+use Dompdf\Dompdf as Dompdf;
 
 class Marks extends CI_Controller{
 
@@ -89,6 +90,7 @@ class Marks extends CI_Controller{
       $config['cur_tag_close'] 			= 	'</a></li>';
       $config['num_tag_open'] 			= 	'<li>';
       $config['num_tag_close'] 			= 	'</li>';
+      $this->pagination->initialize($config);
       $studentMarksArray = $this->QueryModel->fetchDataWithLimitOffset('student_marks', $config['per_page'], $offset, array('isDelete' => '0'));
       if(!empty($studentMarksArray)) {
         foreach($studentMarksArray as $single_studentMarks) {
@@ -139,9 +141,8 @@ class Marks extends CI_Controller{
   /**
    * @purpose: generate class result
    */
-  public function sectionResult(){
+  public function tabulationSheet(){
     try {
-      echo $this->config->item('rabbitmq')['host']; die;
       if(!empty($this->input->post()) && $this->input->post('button') === 'Generate') {
         $this->form_validation->set_rules('exam_id', 'Exam', 'required');
         $this->form_validation->set_rules('class_id', 'Class', 'required');
@@ -150,20 +151,39 @@ class Marks extends CI_Controller{
           $this->session->set_flashdata('error',validation_errors());
           redirect('Marks/sectionResult', 'refresh');
         } else {
-          $sheetAlreadyGenerateOrNot = $this->QueryModel->getWhere(array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'isComplete' => '1'), 'tabulation_sheet_track');
+          $sheetAlreadyGenerateOrNot = $this->QueryModel->getWhere(array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))), 'tabulation_sheet_track');
           if(!empty($sheetAlreadyGenerateOrNot)) {
-            $this->session->set_flashdata('success', 'Tabulation Sheet generated succesfully. Download from list');
-            redirect('Marks/sectionResult', 'refresh');
+            //die;
+            if($sheetAlreadyGenerateOrNot['isComplete'] === '0') {
+              $this->session->set_flashdata('error', 'Tabulation sheet of given section on the way. Please wait....');
+              redirect('Marks/sectionResult', 'refresh');
+            } else {
+              $this->session->set_flashdata('success', 'Tabulation Sheet generated succesfully. Download from list or delete it from list to regenerate.');
+              redirect('Marks/sectionResult', 'refresh');
+            }
           } else {
-            $connection = new AMQPStreamConnection('localhost', 5672, 'guest', 'guest');
-            $channel = $connection->channel();
-            $channel->queue_declare('hello', false, false, false, false);
-            $msg = new AMQPMessage(json_encode(array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))))));
-            $channel->basic_publish($msg, '', 'hello');
-            $channel->close();
-            $connection->close();
-            $this->session->set_flashdata('success', 'Tabulation Sheet will be avaliable after some times.');
-            redirect('Marks/sectionResult', 'refresh');
+            $checkStudentmarksExistsOrNot = $this->QueryModel->fetchDataWithLimitOffset('student_marks', 1, 0, array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))));
+            if(empty($checkStudentmarksExistsOrNot)) {
+              $this->session->set_flashdata('error', 'Please submit marks for tabulation sheet');
+              redirect('Marks/sectionResult', 'refresh'); 
+            } else {
+              $insertArray = array(
+                'exam_id'       =>   trim(strip_tags($this->input->post('exam_id'))),
+                'class_id'      =>   trim(strip_tags($this->input->post('class_id'))),
+                'section_id'    =>   trim(strip_tags($this->input->post('section_id'))),
+                'isComplete'    =>  '0'
+              );
+              $sheetId          =   $this->QueryModel->insertDataIntoTable($insertArray, 'tabulation_sheet_track');
+              $connection = new AMQPStreamConnection($this->config->item('rabbitmq')['host'], 5672, $this->config->item('rabbitmq')['user'], $this->config->item('rabbitmq')['pass']);
+              $channel = $connection->channel();
+              $channel->queue_declare('hello', false, false, false, false);
+              $msg = new AMQPMessage(json_encode(array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'sheet_id' => $sheetId)));
+              $channel->basic_publish($msg, '', 'hello');
+              $channel->close();
+              $connection->close();
+              $this->session->set_flashdata('success', 'Tabulation Sheet will be avaliable after some times.');
+              redirect('Marks/sectionResult', 'refresh'); 
+            }
           }
         }
         
@@ -180,7 +200,7 @@ class Marks extends CI_Controller{
   /**
    * @purpose: List Generation
    */
-  public function tabulationSheet($offset = 0){
+  public function tabulationSheetList($offset = 0){
     try {
       if($offset > 1) {
         $offset 						= 	$offset - 1;
@@ -204,6 +224,7 @@ class Marks extends CI_Controller{
       $config['cur_tag_close'] 			= 	'</a></li>';
       $config['num_tag_open'] 			= 	'<li>';
       $config['num_tag_close'] 			= 	'</li>';
+      $this->pagination->initialize($config);
       $data 					              = 	$this->QueryModel->fetchDataWithLimitOffset('tabulation_sheet_track', $config['per_page'], $offset, array('isDelete' => '0'));
       if(!empty($data)) {
         foreach($data as $single_sheet) {
@@ -249,4 +270,452 @@ class Marks extends CI_Controller{
       echo $e->getMessage(); die;
     }
   }
+
+
+  /**
+   * @purpose: delete sheet for regenerate
+   */
+  public function deleteSheet() {
+    try {
+      if(!empty($this->input->post('sheetId'))) {
+        $getSheetDetails = $this->QueryModel->getWhere(array('sheetId' => $this->input->post('sheetId')), 'tabulation_sheet_track');
+        if(!empty($getSheetDetails)) {
+          $deleteStatus = $this->QueryModel->deleteDataFromDataBase(array('sheetId' => $this->input->post('sheetId')), 'tabulation_sheet_track');
+          if($deleteStatus === true) {
+            unlink(TABAULATION_SHEET_URL.'/'.$getSheetDetails['csv_name']);
+            echo "1"; die;
+          } else {
+            echo "error"; die;
+          }
+        } else {
+          echo "error"; die;
+        }
+      } else {
+        echo "error"; die;
+      }
+    } catch(Throwable $e) {
+      echo "error"; die;
+    }
+  }
+
+
+  /**
+   * @purpose: Download section wise student
+   */
+  public function sectionWiseResult() {
+    try {
+      $html = '<!DOCTYPE html>
+          <html>
+            <head>
+              <style>
+                *{ font-size: 14px; border-color: #ddd !important;}
+              </style>
+            </head>
+            <body>
+              <table style="max-width: 100%; font-size: 20px; font-family: Arial, Helvetica, sans-serif; width:1000px; margin: 0 auto; ">
+                <tr>
+                  <td style="text-align: center; ">
+                  
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                  <div style="margin-bottom:10px; width:685px; text-align:center;">
+                  Academic session 2019-2020<br/>
+                  Mark sheet for Terminal Examination 
+                  </div>
+                    <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Name:</strong> SUJAY GHOSH </div>
+                    <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Id No:</strong> STUD0123456 </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px; margin-bottom: 10px;"><strong>Class  :</strong> Class A </div>
+                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Stream:</strong> &nbsp; </div>
+                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Sec:</strong> Section A </div>
+                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Roll No.:</strong> &nbsp; </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="text-align:center;">
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; height:108px; text-align:center; line-height:75px;"> Major Subject(s)
+                    </div>
+                    <span style="width:505px; display:inline-block; border:1px solid #dbdbdb; height:108px;"> 
+                    <div style="border-bottom:1px solid #dbdbdb; height:36px; line-height:26px;">
+                      Terminal
+                    </div>
+                    <div style="border-bottom:1px solid #dbdbdb; height:36px; line-height:26px;">
+                      Marks OBTD
+                    </div>
+                    <div style="">
+                      <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px;">TH</span>
+                      <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px;">PR  Mks</span>
+                      <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px;">Total</span>
+                      <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;">HGST. MARKS</span>
+                  
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+                    English
+                    </div>
+
+
+                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+                  
+                      <div style="">
+                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
+                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
+                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
+                      
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+
+                <tr>
+											<td>
+												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+												Grand Total
+												</div>
+		
+		
+												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+											
+													<div style="">
+														<span style=" margin-top:1px; display:block; height:30px; line-height:26px; text-align:center;">100</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>
+												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+												Percentage
+												</div>
+		
+		
+												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+											
+													<div style="">
+														<span style=" margin-top:1px;  display:block; height:30px; line-height:26px; text-align:center;">60 %</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>
+												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+												S.U.P.W
+												</div>
+		
+		
+												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+											
+													<div style="">
+														<span style=" margin-top:1px;  display:block; height:30px; line-height:26px; text-align:center;">B</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>
+												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
+												C.C.A
+												</div>
+		
+		
+												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
+											
+													<div style="">
+														<span style=" margin-top:1px;  display:block; height:30px; line-height:26px; text-align:center;">A</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										
+										<tr>
+											<td>
+												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:46px; height:60px; margin-top: -8px;text-align:center; border-top:none;" >
+												Class Teacher Remark
+												</div>
+		
+		
+												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px; border-top:none;" >
+											
+													<div style="">
+														<span style="margin-top:1px; width:500px;border-top:none;  display:inline-block; height:60px; line-height:40px; text-align:center;">
+														&nbsp;
+														</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>
+		
+		
+												<div style="width:685px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -10px;" >
+											
+													<div style="">
+														<span style=" margin-top:1px; display:inline-block; height:60px; padding:0 10px; line-height:26px; text-align:left;">
+														<strong>Note:</strong> For subjects where a grade is awarded, grading will be based on the following Scale and Standard:
+														A : Very Good B : Good C : Satisfactory D : Needs improvment E : poor F : Fail 
+														</span>
+													</div>
+												</div>
+											</td>
+										</tr>
+										<tr>
+											<td>
+												<div style="float: left; width: 200px; margin-top: 60px; padding-right: 30px; text-align: center; ">
+												
+													&nbsp;
+												</div>
+												<div style="float: left; width:  200px; margin-top: 60px; padding-right: 30px;text-align: center;">
+													&nbsp;
+												</div>
+												<div style="float: left; width:  200px; margin-top: 60px; padding-left: 30px;text-align: center;">
+													&nbsp;
+												</div>
+											</td>
+										</tr>
+										</table>
+										</body>
+										</html>
+										
+                
+                
+                
+                
+                
+                ';
+      $dompdf = new Dompdf();
+      $dompdf->set_option('isHtml5ParserEnabled', true);
+      $dompdf->loadHtml($html);
+			$dompdf->setPaper('A4', 'portrait');
+      $dompdf->render();
+      $dompdf->stream("section.pdf", array("Attachment" => 1));
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+
+  /**
+   * @purpose: csv upload for 
+   */
 }

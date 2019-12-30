@@ -126,7 +126,7 @@ class Student extends CI_Controller {
 			}else {
 				$offset 						= 	(int)$offset;
             }
-            $config['base_url'] 				= 	base_url('Subject/listStudent');
+            $config['base_url'] 				= 	base_url('Student/listStudent');
             $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRows('students');
             //echo $config['total_rows']; die;
 			$config['per_page'] 				= 	10;
@@ -143,6 +143,7 @@ class Student extends CI_Controller {
 			$config['cur_tag_close'] 			= 	'</a></li>';
 			$config['num_tag_open'] 			= 	'<li>';
             $config['num_tag_close'] 			= 	'</li>';
+            $this->pagination->initialize($config);
             $studentList 					    = 	$this->QueryModel->fetchDataWithLimitOffset('students', $config['per_page'], $offset, array('isDelete' => '0'));
             if(!empty($studentList)) {
                 foreach($studentList as $key => $single_student){
@@ -183,6 +184,61 @@ class Student extends CI_Controller {
             }
         } catch(Exception $e) {
             echo "error"; die;
+        }
+    }
+
+
+
+    /**
+     * @purpose: search student
+     */
+    public function search($offset = 0) {
+        try {
+            if(!empty($_GET['table_search']) && $_GET['search'] === 'search') {
+                if($offset > 1) {
+                    $offset 						= 	$offset - 1;
+                    $offset 						= 	(int)$offset * 10;
+                }else {
+                    $offset 						= 	(int)$offset;
+                }
+                $config['base_url'] 				= 	base_url('Student/search');
+                $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRowsForSearch($_GET['table_search'], 'students');
+                $config['per_page'] 				= 	10;
+                $config['num_links'] 				= 	5;
+                $config['use_page_numbers'] 		= 	TRUE;
+                $config['full_tag_open'] 			= 	'<ul class="pagination">';
+                $config['full_tag_close'] 			= 	'</ul>';
+                $config['prev_link'] 				= 	'&laquo;';
+                $config['prev_tag_open'] 			= 	'<li>';
+                $config['prev_tag_close'] 			= 	'</li>';
+                $config['next_tag_open'] 			= 	'<li>';
+                $config['next_tag_close'] 			= 	'</li>';
+                $config['cur_tag_open'] 			= 	'<li class="active"><a href="#">';
+                $config['cur_tag_close'] 			= 	'</a></li>';
+                $config['num_tag_open'] 			= 	'<li>';
+                $config['num_tag_close'] 			= 	'</li>';
+                $config['reuse_query_string']       =   true;
+               // $config['suffix']                   =   '?' . http_build_query($_GET, '', "&");
+                $this->pagination->initialize($config);
+                $studentList = $this->QueryModel->getSearchResult($_GET['table_search'], 'students', array('isDelete' => '0'), $config['per_page'], $offset); 
+                if(!empty($studentList)) {
+                    foreach($studentList as $key => $single_student){
+                        $single_student['class_name']               =   $this->QueryModel->getWhere(array('classId' => $single_student['class_id'], 'isDelete' => '0'), 'classes')['class_name'];
+                        $single_student['section_name']             =   $this->QueryModel->getWhere(array('sectionId' => $single_student['section_id'], 'isDelete' => '0'), 'sections')['section_name'];
+                        unset($single_student['class_id']);
+                        unset($single_student['section_id']);
+                        $listArray[]                                =   $single_student;
+                    }
+                } else {
+                    $listArray                                      =   array();
+                }
+                $details['students']                                =   $listArray;
+		        $this->load->view('student/liststudent.php', $details);
+            } else {
+                redirect('Student/listStudent', 'refresh');
+            }
+        } catch(Thorwable $e) {
+            echo $e->getMessage(); die;
         }
     }
 

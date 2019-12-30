@@ -12,7 +12,8 @@
 	},
 	"require": {
 		"php": ">=5.3.7",
-		"php-amqplib/php-amqplib": "^2.11"
+		"php-amqplib/php-amqplib": "^2.11",
+		"dompdf/dompdf": "^0.8.3"
 	},
 	"suggest": {
 		"paragonie/random_compat": "Provides better randomness in PHP 5.x"

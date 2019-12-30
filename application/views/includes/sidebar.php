@@ -158,8 +158,8 @@
           </li>
 
 
-          <li class="nav-item has-treeview <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'sectionResult' || $this->uri->segment(2) === 'tabulationSheet') { echo "menu-open"; } ?>">
-            <a href="#" class="nav-link <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'sectionResult' || $this->uri->segment(2) === 'tabulationSheet') { echo "active"; } ?>">
+          <li class="nav-item has-treeview <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'tabulationSheetList' || $this->uri->segment(2) === 'tabulationSheet' || $this->uri->segment(2) === 'csvUpload') { echo "menu-open"; } ?>">
+            <a href="#" class="nav-link <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'tabulationSheetList' || $this->uri->segment(2) === 'tabulationSheet' || $this->uri->segment(2) === 'csvUpload') { echo "active"; } ?>">
               <i class="nav-icon fas fa-copy"></i>
               <p>
               Result
@@ -175,21 +175,33 @@
                 </a>
               </li>
               <li class="nav-item">
+                <a href="<?php echo base_url('Marks/csvUpload'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'csvUpload') { echo "active"; } ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>CSV Upload</p>
+                </a>
+              </li>
+              <li class="nav-item">
                 <a href="<?php echo base_url('Marks/listStudentMarks'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'listStudentMarks') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>List Studnent Marks</p>
                 </a>
               </li>
               <li class="nav-item">
-                <a href="<?php echo base_url('Marks/sectionResult'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'sectionResult') { echo "active"; } ?>">
+                <a href="<?php echo base_url('Marks/tabulationSheet'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'tabulationSheet') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
-                  <p>Section Wise Result</p>
+                  <p>Tabulation Sheet Generate</p>
                 </a>
               </li>
               <li class="nav-item">
-                <a href="<?php echo base_url('Marks/tabulationSheet'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'tabulationSheet') { echo "active"; } ?>">
+                <a href="<?php echo base_url('Marks/tabulationSheetList'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'tabulationSheetList') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Tabulation Sheet List</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="<?php echo base_url('Marks/sectionWiseResult'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'sectionWiseResult') { echo "active"; } ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Section Wise Result</p>
                 </a>
               </li>
             </ul>

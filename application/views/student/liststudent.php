@@ -32,16 +32,18 @@
 
                 <div class="card-tools">
                   <div class="input-group input-group-sm" style="width: 150px;">
-                    <input type="text" name="table_search" class="form-control float-right" placeholder="Search">
+                    <form method="get" action="<?php echo base_url('Student/search'); ?>">
+                      <input type="text" name="table_search" class="form-control float-right" autocomplete="off" placeholder="Search" value="<?php echo (!empty($_GET['table_search']) ? $_GET['table_search'] : ""); ?>">
 
-                    <div class="input-group-append">
-                      <button type="submit" class="btn btn-default"><i class="fas fa-search"></i></button>
-                    </div>
+                      <div class="input-group-append">
+                        <input type="submit" class="btn btn-primary btn-xs" name="search" value="search">
+                      </div>
+                    </form>
                   </div>
                 </div>
               </div>
               <!-- /.card-header -->
-              <div class="card-body table-responsive p-0">
+              <div class="card-body table-responsive">
                 <table class="table table-hover">
                   <thead>
                     <tr>

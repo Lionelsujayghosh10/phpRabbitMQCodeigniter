@@ -164,6 +164,7 @@ class Subject extends CI_Controller {
           $config['cur_tag_close'] 			= 	'</a></li>';
           $config['num_tag_open'] 			= 	'<li>';
           $config['num_tag_close'] 			= 	'</li>';
+          $this->pagination->initialize($config);
           $details['data'] 					= 	$this->QueryModel->fetchDataWithLimitOffset('subjects', $config['per_page'], $offset, array('isDelete' => '0'));
       $this->load->view('subjects/listsubject.php', $details);
       } catch(Exception $e) {
@@ -201,6 +202,7 @@ class Subject extends CI_Controller {
           $config['cur_tag_close'] 			= 	'</a></li>';
           $config['num_tag_open'] 			= 	'<li>';
           $config['num_tag_close'] 			= 	'</li>';
+          $this->pagination->initialize($config);
           $data 					            = 	$this->QueryModel->fetchDataWithLimitOffset('assign_subject', $config['per_page'], $offset, array('isDelete' => '0'));
           if(!empty($data)) {
               foreach($data as $single_assignSubject) {
@@ -272,6 +274,66 @@ class Subject extends CI_Controller {
       }
     } catch(Exception $e) {
       echo $e->getMessage(); die;
+    }
+  }
+
+
+
+  /**
+   * @purpose: search from assign subject list
+   */
+  public function assignSubjectSearch($offset = 0) {
+    try {
+      if(!empty($_GET['table_search']) && $_GET['search'] === 'search') {
+        if($offset > 1) {
+          $offset 						        = 	$offset - 1;
+          $offset 						        = 	(int)$offset * 10;
+        }else {
+          $offset 						        = 	(int)$offset;
+        }
+        $config['base_url'] 				  = 	base_url('Student/search');
+        $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRowsForSearch($_GET['table_search'], 'assign_subject');
+        $config['per_page'] 			  	= 	10;
+        $config['num_links'] 				  = 	5;
+        $config['use_page_numbers'] 	= 	TRUE;
+        $config['full_tag_open'] 			= 	'<ul class="pagination">';
+        $config['fuldeleteSubjectl_tag_close'] 		= 	'</ul>';
+        $config['prev_link'] 				  = 	'&laquo;';
+        $config['prev_tag_open'] 			= 	'<li>';
+        $config['prev_tag_close'] 		= 	'</li>';
+        $config['next_tag_open'] 			= 	'<li>';
+        $config['next_tag_close'] 		= 	'</li>';
+        $config['cur_tag_open'] 			= 	'<li class="active"><a href="#">';
+        $config['cur_tag_close'] 			= 	'</a></li>';
+        $config['num_tag_open'] 			= 	'<li>';
+        $config['num_tag_close'] 			= 	'</li>';
+        $config['reuse_query_string'] =   true;
+
+      } else {
+        redirect('Student/listStudent', 'refresh');
+      }
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+  /**
+   * @purpose : delete subject
+   */
+  public function deleteSubject(){
+    try {
+      if(!empty($this->input->post('subject_id'))) {
+        $delete_status = $this->QueryModel->deleteDataFromDataBase(array('subjectId' => $this->input->post('subject_id')), 'subjects');
+        if($delete_status === true) {
+          echo "success"; die;
+        } else {
+          echo "error"; die;
+        }
+      } else {
+        echo "error"; die;
+      }
+    } catch(Thorwable $e) {
+      echo "error"; die;
     }
   }
 

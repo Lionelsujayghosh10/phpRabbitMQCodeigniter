@@ -53,8 +53,8 @@ $callback = function ($msg) {
     }
   }
   fclose($csv_handler);
-  $insert_query = "INSERT INTO `tabulation_sheet_track` (`exam_id`, `class_id`, `section_id`, `isComplete`, `csv_name`, `isDelete`) VALUES (".$data_array['exam_id'].", ".$data_array['class_id'].", ".$data_array['section_id'].", '1', '".$file_name."', '0')";
-  mysqli_query($mysql_connection, $insert_query);
+  $update_query = "UPDATE `tabulation_sheet_track` SET `isComplete` = '1' , `csv_name` = '".$file_name."' WHERE sheetId = ".$data_array['sheet_id']." ";
+  mysqli_query($mysql_connection, $update_query);
   unset($data_array);
 // echo 'Data saved to csvfile.csv';
 

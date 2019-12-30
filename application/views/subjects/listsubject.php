@@ -41,7 +41,7 @@
                 </div>
               </div>
               <!-- /.card-header -->
-              <div class="card-body table-responsive p-0">
+              <div class="card-body table-responsive">
                 <?php if(!empty($this->session->flashdata('error'))) { ?>
                   <div class="alert alert-danger">
                     <i class="fa fa-check-circle fa-fw fa-lg"></i>
@@ -108,7 +108,37 @@
 
 <script>
   $(document.body).on('click', '.deleteButtonSubject', function(event){
-    let buttonId = $(this).attr('id');
-    
+    let subject_id = $(this).attr('id');
+    swal({
+      title: 'Do you want to delete subject',
+      text: "Assign subject record will be automatically deleted.",
+      type: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes',
+      allowOutsideClick: false
+      }).then((result) => {
+        if (result.value) {
+          $.ajax({
+            url     : '<?php echo base_url('Subject/deleteSubject'); ?>',
+            type    : 'POST',
+            data    : {"subject_id" : subject_id },
+            success : function(data){
+              if(data === "success"){
+                swal({title: "Wow!", text: "Subject deleted successfully done!", type: "success"}).then(function(){ 
+                  location.reload();
+                });
+              } else {
+                swal(
+                  'Error!',
+                  'While deleting the subejct there is an error',
+                  'error'
+                )
+              }
+            }
+          })
+        }
+      })
   });
 </script>

@@ -64,8 +64,9 @@
                                 <td><?php if($single_tabulation['isComplete'] === '0') { ?> <b style="color:red;">Processing...</b> <?php } else { ?> <b style="color:red;">Generate.</b> <?php } ?></td>
                                 <td>
                                   <?php if(!empty($single_tabulation['generate_time'])){ $time = strtotime($single_tabulation['generate_time']); $dateInLocal = date("Y-m-d H:i:s", $time); echo $dateInLocal; } else { echo "N/A"; } ?>
+                                  
                                 </td>
-                                <td><?php if($single_tabulation['isComplete'] === '0') { ?> <button class="btn btn-xs btn-primary" disabled>Download</button></button> <?php } else { ?> <a href="<?php echo base_url('Marks/download/').urlencode($single_tabulation['csv_name']); ?>"><button class="btn btn-xs btn-primary">Download</button></a> <?php } ?></td>
+                                <td><?php if($single_tabulation['isComplete'] === '0') { ?> <button class="btn btn-xs btn-primary" disabled>Download</button></button> <?php } else { ?> <a href="<?php echo base_url('Marks/download/').urlencode($single_tabulation['csv_name']); ?>"><button class="btn btn-xs btn-primary">Download</button></a>&nbsp; &nbsp; <button class="btn btn-xs btn-warning deleteSheet" id="<?php echo $single_tabulation['sheetId'] ?>">Delete</button> <?php } ?></td>
 
                             </tr>
                         <?php } ?>
@@ -93,3 +94,52 @@
 
 
 <?php $this->load->view('includes/footer.php'); ?>
+
+
+
+<script type="text/javascript">
+
+  $(document.body).on('click' , '.deleteSheet' , function(){
+    var sheetId        = $(this).attr('id');
+    swal({
+      title: 'Do you  want to delete it?',
+      text: "Tabulation Sheet will be deleted. To get tabulation sheet of this section need to regenerate.",
+      type: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!',
+      allowOutsideClick: false,
+    }).then((result) => {
+      if (result.value) {
+          $.ajax({
+            url     : '<?php echo base_url('Marks/deleteSheet'); ?>',
+            type    : 'POST',
+            data    : {sheetId : sheetId},
+            success : function(data){
+              if(data == 1){
+                swal({
+                  title: 'Deleted successfully done.',
+                  text: "You won't be able to revert this!",
+                  type: 'success',
+                  confirmButtonColor: '#3085d6',
+                  confirmButtonText: 'Ok!'
+                }).then((result) => {
+                  location.reload();
+                })
+              } else {
+                  swal(
+                    'Error!',
+                    'While deleting the company there is an error',
+                    'error'
+
+                  )
+              }
+            }
+          })
+        
+      }
+    })
+      
+  });
+</script>

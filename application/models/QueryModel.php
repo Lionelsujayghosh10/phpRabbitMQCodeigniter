@@ -95,7 +95,7 @@ class QueryModel extends CI_Model {
                     return [];
                 }
             case 'tabulation_sheet_track':
-                $sql = $this->db->select('sheetId, exam_id, class_id, section_id, csv_name')
+                $sql = $this->db->select('sheetId, exam_id, class_id, section_id, csv_name, isComplete')
                                 ->where($conditionArray)
                                 ->get($table);
                 if($sql->row_array() > 0) {
@@ -279,6 +279,40 @@ class QueryModel extends CI_Model {
                 }
 
         }
+    }
+
+
+    public function deleteDataFromDataBase($conditionArray, $table) {
+        $status = $this->db->delete($table, $conditionArray);
+        return $status;
+    }
+
+
+
+    public function getSearchResult($search_data, $table, $conditionArray, $limit, $offset) {
+        switch($table) {
+            case 'students':
+                $sql = $this->db->select('studentId, student_name, student_id, parent_id, student_rollNumber, class_id, section_id, student_code')
+                                ->like('student_name', $search_data, 'both')
+                                ->where($conditionArray)
+                                ->limit($limit, $offset)
+                                ->get($table);
+                if($sql->row_array() > 0) {
+                    $result = $sql->result_array();
+                    return $result;
+                } else {
+                    return [];
+                }
+        }
+    }
+
+
+    public function getNumberOfRowsForSearch($search_data, $table) {
+        switch($table) {
+            case 'students':
+                $result = $this->db->query("SELECT COUNT(studentId) AS studentCount FROM students WHERE isDelete='0' AND student_name like '%".$search_data."%' ");
+                return $result->row_array()['studentCount']; 
+        } 
     }
 
 
