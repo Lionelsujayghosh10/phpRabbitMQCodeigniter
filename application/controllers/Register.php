@@ -33,7 +33,7 @@ class Register extends CI_Controller {
             if(!empty($this->input->post()) && $this->input->post('register') === 'Register') {
                 $this->form_validation->set_rules('fname', 'fname', 'required');
                 $this->form_validation->set_rules('email', 'email', 'required|valid_email|is_unique[users.email]');
-                $this->form_validation->set_rules('password', 'password', 'required|min_length[5]|max_length[12]');
+                $this->form_validation->set_rules('password', 'password', 'required|min_length[5]|max_length[25]');
                 $this->form_validation->set_rules('passconf', 'Password Confirmation', 'required|matches[password]');
                 if ($this->form_validation->run() === FALSE) {
                     $this->session->set_flashdata('error',validation_errors());

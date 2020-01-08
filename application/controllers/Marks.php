@@ -76,6 +76,8 @@ class Marks extends CI_Controller{
       }
       $config['base_url'] 				  = 	base_url('Marks/listStudentMarks');
       $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRows('student_marks');
+      $config['first_link']         =   false;
+      $config['last_link']          =   false;
       $config['per_page'] 				  = 	10;
       $config['num_links'] 				  = 	5;
       $config['use_page_numbers'] 	= 	TRUE;
@@ -94,14 +96,16 @@ class Marks extends CI_Controller{
       $studentMarksArray = $this->QueryModel->fetchDataWithLimitOffset('student_marks', $config['per_page'], $offset, array('isDelete' => '0'));
       if(!empty($studentMarksArray)) {
         foreach($studentMarksArray as $single_studentMarks) {
-          $examDetails = $this->QueryModel->getWhere(array('examId' => $single_studentMarks['exam_id'], 'isdelete' => '0'), 'exams');
-          $classDetails = $this->QueryModel->getWhere(array('classId' => $single_studentMarks['class_id'], 'isdelete' => '0'), 'classes');
-          $sectionDetails = $this->QueryModel->getWhere(array('sectionId' => $single_studentMarks['section_id'], 'isdelete' => '0'), 'sections');
-          $subjectDetals = $this->QueryModel->getWhere(array('subjectId' => $single_studentMarks['subject_id'], 'isdelete' => '0'), 'subjects');
+          $examDetails = $this->QueryModel->getWhere(array('examId' => $single_studentMarks['exam_id'], 'isDelete' => '0'), 'exams');
+          $classDetails = $this->QueryModel->getWhere(array('classId' => $single_studentMarks['class_id'], 'isDelete' => '0'), 'classes');
+          $sectionDetails = $this->QueryModel->getWhere(array('sectionId' => $single_studentMarks['section_id'], 'isDelete' => '0'), 'sections');
+          $subjectDetals = $this->QueryModel->getWhere(array('subjectId' => $single_studentMarks['subject_id'], 'isDelete' => '0'), 'subjects');
+          $studentDetails = $this->QueryModel->getWhere(array('studentId' => $single_studentMarks['student_id'], 'isDelete' => '0'), 'students');
           $single_studentMarks['exam_name'] = $examDetails['exam_name'];
           $single_studentMarks['class_name'] = $classDetails['class_name'];
           $single_studentMarks['section_name'] = $sectionDetails['section_name'];
           $single_studentMarks['subject_name'] = $subjectDetals['subject_name'];
+          $single_studentMarks['student_name'] = (!empty($studentDetails['student_name']) ? $studentDetails['student_name'] : "N/A");
           unset($single_studentMarks['subject_id']);
           unset($single_studentMarks['student_id']);
           unset($single_studentMarks['section_id']);
@@ -149,23 +153,23 @@ class Marks extends CI_Controller{
         $this->form_validation->set_rules('section_id', 'Section', 'required');
         if ($this->form_validation->run() === FALSE) {
           $this->session->set_flashdata('error',validation_errors());
-          redirect('Marks/sectionResult', 'refresh');
+          redirect('Marks/tabulationSheet', 'refresh');
         } else {
           $sheetAlreadyGenerateOrNot = $this->QueryModel->getWhere(array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))), 'tabulation_sheet_track');
           if(!empty($sheetAlreadyGenerateOrNot)) {
             //die;
             if($sheetAlreadyGenerateOrNot['isComplete'] === '0') {
               $this->session->set_flashdata('error', 'Tabulation sheet of given section on the way. Please wait....');
-              redirect('Marks/sectionResult', 'refresh');
+              redirect('Marks/tabulationSheet', 'refresh');
             } else {
               $this->session->set_flashdata('success', 'Tabulation Sheet generated succesfully. Download from list or delete it from list to regenerate.');
-              redirect('Marks/sectionResult', 'refresh');
+              redirect('Marks/tabulationSheet', 'refresh');
             }
           } else {
-            $checkStudentmarksExistsOrNot = $this->QueryModel->fetchDataWithLimitOffset('student_marks', 1, 0, array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))));
+            $checkStudentmarksExistsOrNot = $this->QueryModel->fetchDataWithLimitOffset('student_marks', 1, 0, array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'isDelete' => '0'));
             if(empty($checkStudentmarksExistsOrNot)) {
               $this->session->set_flashdata('error', 'Please submit marks for tabulation sheet');
-              redirect('Marks/sectionResult', 'refresh'); 
+              redirect('Marks/tabulationSheet', 'refresh'); 
             } else {
               $insertArray = array(
                 'exam_id'       =>   trim(strip_tags($this->input->post('exam_id'))),
@@ -182,7 +186,7 @@ class Marks extends CI_Controller{
               $channel->close();
               $connection->close();
               $this->session->set_flashdata('success', 'Tabulation Sheet will be avaliable after some times.');
-              redirect('Marks/sectionResult', 'refresh'); 
+              redirect('Marks/tabulationSheet', 'refresh'); 
             }
           }
         }
@@ -300,415 +304,62 @@ class Marks extends CI_Controller{
 
 
   /**
+   * @purpose: delete student marks
+   */
+  public function delete(){
+    try {
+      if(!empty($this->input->post('raw_id'))) {
+        $deleteStatus = $this->QueryModel->updateData(array('isDelete' => '1'), array('studentMarksId' => $this->input->post('raw_id'), 'isDelete' => '0'), 'student_marks');
+        if($deleteStatus === true) {
+          echo "success"; die;
+        } else {
+          echo "error"; die;
+        }
+      } else {
+        echo "error"; die;
+      }
+    } catch(Throwable $e) {
+      echo "error"; die;
+    }
+  }
+
+
+  /**
    * @purpose: Download section wise student
    */
   public function sectionWiseResult() {
     try {
-      $html = '<!DOCTYPE html>
-          <html>
-            <head>
-              <style>
-                *{ font-size: 14px; border-color: #ddd !important;}
-              </style>
-            </head>
-            <body>
-              <table style="max-width: 100%; font-size: 20px; font-family: Arial, Helvetica, sans-serif; width:1000px; margin: 0 auto; ">
-                <tr>
-                  <td style="text-align: center; ">
-                  
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                  <div style="margin-bottom:10px; width:685px; text-align:center;">
-                  Academic session 2019-2020<br/>
-                  Mark sheet for Terminal Examination 
-                  </div>
-                    <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Name:</strong> SUJAY GHOSH </div>
-                    <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Id No:</strong> STUD0123456 </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px; margin-bottom: 10px;"><strong>Class  :</strong> Class A </div>
-                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Stream:</strong> &nbsp; </div>
-                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Sec:</strong> Section A </div>
-                    <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Roll No.:</strong> &nbsp; </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="text-align:center;">
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; height:108px; text-align:center; line-height:75px;"> Major Subject(s)
-                    </div>
-                    <span style="width:505px; display:inline-block; border:1px solid #dbdbdb; height:108px;"> 
-                    <div style="border-bottom:1px solid #dbdbdb; height:36px; line-height:26px;">
-                      Terminal
-                    </div>
-                    <div style="border-bottom:1px solid #dbdbdb; height:36px; line-height:26px;">
-                      Marks OBTD
-                    </div>
-                    <div style="">
-                      <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px;">TH</span>
-                      <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px;">PR  Mks</span>
-                      <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px;">Total</span>
-                      <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;">HGST. MARKS</span>
-                  
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-                    English
-                    </div>
-
-
-                    <div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-                  
-                      <div style="">
-                        <span style="width:120px; margin-top:6px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:120px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">&nbsp;</span>
-                        <span style="width:125px; margin-top:1px; border-right:1px solid #dbdbdb; display:inline-block; height:30px; line-height:20px; text-align:center;">100</span>
-                        <span style="width:125px; margin-top:0px; border-right:none; display:inline-block; height:30px; line-height:20px;text-align:center;">&nbsp;</span>
-                      
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-
-
-                <tr>
-											<td>
-												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-												Grand Total
-												</div>
-		
-		
-												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-											
-													<div style="">
-														<span style=" margin-top:1px; display:block; height:30px; line-height:26px; text-align:center;">100</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-										<tr>
-											<td>
-												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-												Percentage
-												</div>
-		
-		
-												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-											
-													<div style="">
-														<span style=" margin-top:1px;  display:block; height:30px; line-height:26px; text-align:center;">60 %</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-										<tr>
-											<td>
-												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-												S.U.P.W
-												</div>
-		
-		
-												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-											
-													<div style="">
-														<span style=" margin-top:1px;  display:block; height:30px; line-height:26px; text-align:center;">B</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-										<tr>
-											<td>
-												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; height:37px; margin-top: -8px;text-align:center;" >
-												C.C.A
-												</div>
-		
-		
-												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px;" >
-											
-													<div style="">
-														<span style=" margin-top:1px;  display:block; height:30px; line-height:26px; text-align:center;">A</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-										
-										<tr>
-											<td>
-												<div style="width:180px; display:inline-block; border:1px solid #dbdbdb; line-height:46px; height:60px; margin-top: -8px;text-align:center; border-top:none;" >
-												Class Teacher Remark
-												</div>
-		
-		
-												<div style="width:505px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -8px; border-top:none;" >
-											
-													<div style="">
-														<span style="margin-top:1px; width:500px;border-top:none;  display:inline-block; height:60px; line-height:40px; text-align:center;">
-														&nbsp;
-														</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-										<tr>
-											<td>
-		
-		
-												<div style="width:685px; display:inline-block; border:1px solid #dbdbdb; line-height:26px; margin-top: -10px;" >
-											
-													<div style="">
-														<span style=" margin-top:1px; display:inline-block; height:60px; padding:0 10px; line-height:26px; text-align:left;">
-														<strong>Note:</strong> For subjects where a grade is awarded, grading will be based on the following Scale and Standard:
-														A : Very Good B : Good C : Satisfactory D : Needs improvment E : poor F : Fail 
-														</span>
-													</div>
-												</div>
-											</td>
-										</tr>
-										<tr>
-											<td>
-												<div style="float: left; width: 200px; margin-top: 60px; padding-right: 30px; text-align: center; ">
-												
-													&nbsp;
-												</div>
-												<div style="float: left; width:  200px; margin-top: 60px; padding-right: 30px;text-align: center;">
-													&nbsp;
-												</div>
-												<div style="float: left; width:  200px; margin-top: 60px; padding-left: 30px;text-align: center;">
-													&nbsp;
-												</div>
-											</td>
-										</tr>
-										</table>
-										</body>
-										</html>
-										
-                
-                
-                
-                
-                
-                ';
-      $dompdf = new Dompdf();
-      $dompdf->set_option('isHtml5ParserEnabled', true);
-      $dompdf->loadHtml($html);
-			$dompdf->setPaper('A4', 'portrait');
-      $dompdf->render();
-      $dompdf->stream("section.pdf", array("Attachment" => 1));
+      if(!empty($this->input->post()) && $this->input->post('button') === 'Generate') {
+        $this->form_validation->set_rules('class_id', 'Class', 'required');
+        $this->form_validation->set_rules('section_id', 'Section', 'required');
+        if ($this->form_validation->run() === FALSE) {
+          $this->session->set_flashdata('error',validation_errors());
+          redirect('Marks/sectionWiseResult', 'refresh');
+        } else {
+          $insert_status = $this->QueryModel->insertDataIntoTable(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))), 'pdf_track');
+          if(!empty($insert_status)) {
+            $connection = new AMQPStreamConnection($this->config->item('rabbitmq')['host'], 5672, $this->config->item('rabbitmq')['user'], $this->config->item('rabbitmq')['pass']);
+            $channel = $connection->channel();
+            $channel->queue_declare('pdfResult', false, true, false, false);
+            $data = json_encode(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'pdf_track_id' => $insert_status));
+            $msg = new AMQPMessage(
+              $data,
+              array('delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT)
+            );
+            $channel->basic_publish($msg, '', 'pdfResult');
+            $channel->close();
+            $connection->close();
+            $this->session->set_flashdata('success', 'Result as an PDF will be avaliable after some times.');
+            redirect('Marks/sectionWiseResult', 'refresh'); 
+          } else {
+            $this->session->set_flashdata('error', 'Try again.');
+            redirect('Marks/sectionWiseResult', 'refresh');
+          }
+        }
+      } else {
+        $data['classes'] 			      = 	$this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'classes');
+        $this->load->view('marks/sectionwiseresult', $data);
+      }
     } catch(Thorwable $e) {
       echo $e->getMessage(); die;
     }
@@ -718,4 +369,173 @@ class Marks extends CI_Controller{
   /**
    * @purpose: csv upload for 
    */
+  public function csvUpload() {
+    try {
+      if(!empty($this->input->post()) && $this->input->post('create') === 'Upload') {
+        if(!empty($_FILES['markscsv']['name'])) {
+          if($_FILES['markscsv']['type'] === "text/csv") {
+            $file = fopen($_FILES["markscsv"]["tmp_name"],"r");
+            $finalArr = array();
+            $count = 0;
+            while($data = fgetcsv($file)) {
+              array_push($finalArr,$data);                   
+            }
+            foreach($finalArr as $single_student_marks) {
+              if(empty($single_student_marks[0]) || is_null($single_student_marks[0]) || trim($single_student_marks[0]) === '') {
+                
+              }
+              $examExistsOrNot = $this->QueryModel->getWhere(array('exam_name' => trim(strip_tags($single_student_marks[0])), 'isDelete' => '0'), 'exams');
+              if(!empty($examExistsOrNot)) {
+                $classExistsOrNot = $this->QueryModel->getWhere(array('class_name' => trim(strip_tags($single_student_marks[1])), 'isDelete' => '0'), 'classes');
+                if(!empty($classExistsOrNot)) {
+                  $sectionExistsOrNot = $this->QueryModel->getWhere(array('section_name' => trim(strip_tags($single_student_marks[2])), 'class_id' => $classExistsOrNot['classId'], 'isDelete' => '0'), 'sections');
+                  if(!empty($sectionExistsOrNot)) {
+                    $subjectExistsOrNot = $this->QueryModel->getWhere(array('subject_name' => trim(strip_tags($single_student_marks[3])), 'isDelete' => '0'), 'subjects');
+                    if(!empty($subjectExistsOrNot)) {
+                      $student_name_array = explode(' ', $single_student_marks[4]);
+                      if(sizeof($student_name_array) === 3) {
+                        $student_name = $student_name_array[2]." ".$student_name_array[0]." ".$student_name_array[1];
+                      } 
+                      if(sizeof($student_name_array) === 2) {
+                        $student_name = $student_name_array[1]." ".$student_name_array[0];
+                      }
+                      if(sizeof($student_name_array) === 1) {
+                        $student_name = $student_name_array[0];
+                      }
+                      $checkStudentExistsOrNot = $this->QueryModel->getWhere(array('student_name' => $student_name, 'isDelete' => '0'), 'students');
+                      if($checkStudentExistsOrNot) {
+                        $checkNumberAlreadyGivenOrNot = $this->QueryModel->getWhere(array('exam_id' => $examExistsOrNot['examId'], 'class_id' => $classExistsOrNot['classId'], 'section_id' => $sectionExistsOrNot['sectionId'], 'subject_id' => $subjectExistsOrNot['subjectId'], 'student_id' => $checkStudentExistsOrNot['studentId']), 'student_marks');
+                        if(empty($checkNumberAlreadyGivenOrNot)){
+                          $insertArray = array('exam_id' => $examExistsOrNot['examId'], 'class_id' => $classExistsOrNot['classId'], 'section_id' => $sectionExistsOrNot['sectionId'], 'subject_id' => $subjectExistsOrNot['subjectId'], 'student_id' => $checkStudentExistsOrNot['studentId'], 'total_marks' => trim(strip_tags($single_student_marks[6])), 'otained_marks' => trim(strip_tags($single_student_marks[5])));
+                          $this->QueryModel->insertDataIntoTable($insertArray, 'student_marks');
+                          unset($insertArray);
+                          continue;
+                        } else {
+                          continue;
+                        }
+                      } else {
+                        continue;
+                      }
+                    } else {
+                      continue;
+                    }
+                  } else {
+                    continue;
+                  }
+                } else {
+                  continue;
+                }
+              } else {
+                continue;
+              }
+            }
+            unlink($_FILES['markscsv']['tmp_name']);
+            $this->session->set_flashdata('success','Marks entry successfully done.');
+						redirect('Marks/csvUpload', 'refresh');
+          } else {
+            $this->session->set_flashdata('error','CSV file is required.Try again!');
+						redirect('Marks/csvUpload', 'refresh');
+          }
+        } else {
+          $this->session->set_flashdata('error','CSV file is required.Try again!');
+					redirect('Marks/csvUpload', 'refresh');
+        }
+      } else {
+        $this->load->view('marks/csvupload');
+      }
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+
+  /**
+   * @purpose: serach among student list marks
+   */
+
+  public function search(){
+    try {
+      echo "<pre>"; print_r($_GET); die;
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+
+  /**
+   * @purpose: edit marks 
+   */
+  public function fetch($encrypt_id){
+    try {
+      if(!empty($encrypt_id)) {
+        $raw_id = base64_decode($encrypt_id);
+        if(!empty($raw_id)) {
+          $getData = $this->QueryModel->getWhere(array('studentMarksId' => $raw_id, 'isDelete' => '0'), 'student_marks');
+          if(!empty($getData)) {
+            $examDetails = $this->QueryModel->getWhere(array('examId' => $getData['exam_id'], 'isDelete' => '0'), 'exams');
+            $classDetails = $this->QueryModel->getWhere(array('classId' => $getData['class_id'], 'isDelete' => '0'), 'classes');
+            $sectionDetails = $this->QueryModel->getWhere(array('sectionId' => $getData['section_id'], 'isDelete' => '0'), 'sections');
+            $subjectDetals = $this->QueryModel->getWhere(array('subjectId' => $getData['subject_id'], 'isDelete' => '0'), 'subjects');
+            $studentDetails = $this->QueryModel->getWhere(array('studentId' => $getData['student_id'], 'isDelete' => '0'), 'students');
+            $getData['exam_name'] = (!empty($examDetails['exam_name']) ? $examDetails['exam_name'] : "N/A");
+            $getData['class_name'] = (!empty($classDetails['class_name']) ? $classDetails['class_name'] : "N/A");
+            $getData['section_name'] = (!empty($sectionDetails['section_name']) ? $sectionDetails['section_name'] : "N/A");
+            $getData['subject_name'] = (!empty($subjectDetals['subject_name']) ? $subjectDetals['subject_name'] : "N/A");
+            $getData['student_name'] = (!empty($studentDetails['student_name']) ? $studentDetails['student_name'] : "N/A");
+            $this->load->view('marks/editStudnetMarks', $getData);
+          } else {
+            redirect('Marks/listStudentMarks', 'refresh');
+          }
+        } else {
+          redirect('Marks/listStudentMarks', 'refresh');
+        }
+      } else {
+        redirect('Marks/listStudentMarks', 'refresh');
+      }
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+
+  /**
+   * @purpose: update student mark
+   */
+  public function edit() {
+    try {
+      if((!empty($this->input->post())) && ($this->input->post('update') === 'Update') && (!empty($this->input->post('raw'))) ) {
+        $raw_id = base64_decode($this->input->post('raw'));
+        $status = $this->QueryModel->updateData(array('total_marks' => trim(strip_tags($this->input->post('total_marks'))), 'otained_marks' => trim(strip_tags($this->input->post('otained_marks')))), array('studentMarksId' => $raw_id, 'isDelete' => '0'), 'student_marks');
+        if($status === true) {
+          $this->session->set_flashdata('success', 'Student update sucessfully done.');
+          redirect('Marks/fetch/'.$this->input->post('raw'), 'refresh');
+        } else {
+          $this->session->set_flashdata('error', 'Try again!');
+          redirect('Marks/fetch/'.$this->input->post('raw'), 'refresh');
+        }
+      } else {
+        redirect('Marks/listStudentMarks', 'refresh');
+      }
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+
+  /**
+   * @purpose: marks entry for single student
+   */
+  public function marksEntry() {
+    try {
+      if(!empty($this->input->post())) {
+        echo "<pre>"; print_r($this->input->post()); die;
+      } else {
+        $data['exams']              =   $this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'exams');
+        $data['classes'] 			      = 	$this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'classes');
+        $this->load->view('marks/singlestudentmarks', $data);
+      }
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
 }

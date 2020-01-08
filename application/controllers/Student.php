@@ -134,7 +134,9 @@ class Student extends CI_Controller {
 			$config['use_page_numbers'] 		= 	TRUE;
 			$config['full_tag_open'] 			= 	'<ul class="pagination">';
 			$config['full_tag_close'] 			= 	'</ul>';
-			$config['prev_link'] 				= 	'&laquo;';
+            $config['prev_link'] 				= 	'&laquo;';
+            $config['first_link']               =   false;
+            $config['last_link']                =   false;
 			$config['prev_tag_open'] 			= 	'<li>';
 			$config['prev_tag_close'] 			= 	'</li>';
 			$config['next_tag_open'] 			= 	'<li>';

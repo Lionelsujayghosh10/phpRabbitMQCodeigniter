@@ -158,8 +158,8 @@
           </li>
 
 
-          <li class="nav-item has-treeview <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'tabulationSheetList' || $this->uri->segment(2) === 'tabulationSheet' || $this->uri->segment(2) === 'csvUpload') { echo "menu-open"; } ?>">
-            <a href="#" class="nav-link <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'tabulationSheetList' || $this->uri->segment(2) === 'tabulationSheet' || $this->uri->segment(2) === 'csvUpload') { echo "active"; } ?>">
+          <li class="nav-item has-treeview <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'tabulationSheetList' || $this->uri->segment(2) === 'tabulationSheet' || $this->uri->segment(2) === 'csvUpload' || $this->uri->segment(2) === 'fetch') { echo "menu-open"; } ?>">
+            <a href="#" class="nav-link <?php if($this->uri->segment(2) === 'listStudentMarks' || $this->uri->segment(2) === 'studentMark' || $this->uri->segment(2) === 'tabulationSheetList' || $this->uri->segment(2) === 'tabulationSheet' || $this->uri->segment(2) === 'csvUpload' || $this->uri->segment(2) === 'fetch') { echo "active"; } ?>">
               <i class="nav-icon fas fa-copy"></i>
               <p>
               Result
@@ -172,6 +172,12 @@
                 <a href="<?php echo base_url('Marks/studentMark'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'studentMark') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Marks Entery</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="<?php echo base_url('Marks/marksEntry'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'marksEntry') { echo "active"; } ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Single student Marks Entry</p>
                 </a>
               </li>
               <li class="nav-item">
@@ -192,6 +198,7 @@
                   <p>Tabulation Sheet Generate</p>
                 </a>
               </li>
+              
               <li class="nav-item">
                 <a href="<?php echo base_url('Marks/tabulationSheetList'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'tabulationSheetList') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>

@@ -10,11 +10,11 @@ $this->load->view('includes/sidebar.php'); ?>
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1>Marks Entry</h1>
+            <h1>Section Wise Result Generate</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
-              <li class="breadcrumb-item"><a href="#">Home</a></li>
+              <li class="breadcrumb-item"><a href="<?php echo base_url('Dashboard'); ?>">Home</a></li>
               <li class="breadcrumb-item active">Result</li>
             </ol>
           </div>
@@ -31,7 +31,7 @@ $this->load->view('includes/sidebar.php'); ?>
             <!-- general form elements -->
             <div class="card ccard-info">
               <div class="card-header">
-                <h3 class="card-title">Student Marks</h3>
+                <h3 class="card-title">Section Wise Result Generate </h3>
               </div>
               <!-- /.card-header -->
               <!-- form start -->
@@ -50,17 +50,6 @@ $this->load->view('includes/sidebar.php'); ?>
                     </div>
                 <?php } ?>
                     <div class="form-group">
-                      <label for="exampleInputEmail1">Exams </label>
-                      <select name="exam_id" class="form-control">
-                          <option value="">Select an exam</option>
-                          <?php if(!empty($exams)) { ?>
-                              <?php foreach($exams as $exam) {  ?>
-                                  <option value="<?php echo (!empty($exam['examId']) ? $exam['examId'] : ""); ?>"><?php echo (!empty($exam['exam_name']) ? $exam['exam_name'] : "N/A"); ?></option>
-                              <?php } ?>
-                          <?php }  ?>
-                      </select>
-                    </div>
-                    <div class="form-group">
                         <label for="exampleInputEmail1">Class </label>
                         <select name="class_id" class="form-control class_selection" id="class_id">
                             <option value="">Select an class</option>
@@ -78,33 +67,11 @@ $this->load->view('includes/sidebar.php'); ?>
                             <option value="">Select an class first</option>
                         </select>
                     </div>
-
-                    <div class="form-group">
-                        <label for="exampleInputEmail1">Subject </label>
-                        <select name="subject_id" class="form-control" id="subject_selection">
-                            <option value="">Select an class first</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="exampleInputEmail1">Total Marks </label>
-                        <input type="text" name="total_marks"  class="form-control" placeholder="Enter total marks" required="required" autocomplete="off">
-                    </div>
-
-                        <div class="form-group" id="student_id">
-
-                        </div>
-                    <div class="col-md-12"></div>
-                    <div class="form-group">
-                      <small style="color:red; display:none" class="errorView">Please select class and section to get student list.</small>
-                      <a href="javascript:void(0);"><button class="view_student btn btn-primary" >View Student</button></a>
-                    </div>
-
                 </div>
                 <!-- /.card-body -->
 
                 <div class="card-footer">
-                  <input type="submit" class="btn btn-primary" name="create" value="Create" >
+                  <input type="submit" class="btn btn-primary" name="button" value="Generate" >
                 </div>
               </form>
             </div>
@@ -184,35 +151,5 @@ $this->load->view('includes/sidebar.php'); ?>
             }
         });
     });
-
-    $(document.body).on('click', '.view_student', function(event){
-      let classId  = $('.class_selection').children("option:selected").attr('data-classId');
-      let sectionId  = $('#section_selection').children("option:selected").attr('data-sectionId');
-      $.ajax({
-        url     : '<?php echo base_url("Student/getStudent");?>',
-        type    : 'POST',
-        data    : {classId: classId , sectionId : sectionId},
-        success	: function(data){
-          if(data !== "error" ){
-            let response = JSON.parse(data);
-              if(response.length > 0){
-                let i;
-                let output = '';
-                for( i = 0; i < response.length; i++ ){
-                  output += response[i].student_name+ '<input type="hidden" name="studentId[]" value="'+response[i].studentId+'" > <input type="text" class="form-control"  name="marks[]" value="" placeholder="Enter Marks"><br>';
-                }
-                $('#student_id').html(output);
-              } else {
-
-              }
-            $('.errorView').css("display", "none");
-          } else {
-            $('.errorView').css("display", "block");
-          }
-        }
-      });
-      event.preventDefault();
-    });
-
 
 </script>

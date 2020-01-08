@@ -1,5 +1,8 @@
 <?php  $this->load->view('includes/sidebar.php'); ?>
 
+<style>
+.pagination li{ padding:10px; background:#ccc;}
+</style>
 
 <div class="content-wrapper">
     <!-- Content Header (Page header) -->
@@ -10,7 +13,7 @@
             <h1>List Student</h1>
           </div>
           <div class="col-sm-6">
-            <ol class="breadcrumb float-sm-right">
+            <ol class="breadcrumb float-sm-rigNo Student created yet.ht">
               <li class="breadcrumb-item"><a href="#">Home</a></li>
               <li class="breadcrumb-item active">Student</li>
             </ol>
@@ -31,11 +34,11 @@
                 <h3 class="card-title">List Student</h3>
 
                 <div class="card-tools">
-                  <div class="input-group input-group-sm" style="width: 150px;">
+                  <div class="input-group input-group-sm" style="width: 200px;">
                     <form method="get" action="<?php echo base_url('Student/search'); ?>">
                       <input type="text" name="table_search" class="form-control float-right" autocomplete="off" placeholder="Search" value="<?php echo (!empty($_GET['table_search']) ? $_GET['table_search'] : ""); ?>">
 
-                      <div class="input-group-append">
+                      <div class="input-group-append" style="float: right; margin-top: -38px; height: 38px;">
                         <input type="submit" class="btn btn-primary btn-xs" name="search" value="search">
                       </div>
                     </form>
@@ -70,7 +73,11 @@
                             </tr>
                         <?php } ?>
                     <?php } else { ?>
-                        <tr><td colspan="3">No Student created yet.</td></tr>
+                        <?php if(!empty($_GET['table_search'])) { ?>
+                          <tr><td colspan="3" style="color:red;">No student found.</td></tr>
+                       <?php  } else { ?>
+                        <tr><td colspan="3" style="color:red;">No Student created yet.</td></tr>
+                      <?php } ?>
                     <?php } ?>
                   </tbody>
                 </table>

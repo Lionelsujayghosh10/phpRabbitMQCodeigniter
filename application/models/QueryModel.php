@@ -104,6 +104,16 @@ class QueryModel extends CI_Model {
                 } else {
                     return [];
                 }
+            case 'student_marks':
+                $sql = $this->db->select('studentMarksId, exam_id, class_id, student_id, section_id,  subject_id, total_marks, otained_marks')
+                                ->where($conditionArray)
+                                ->get($table);
+                if($sql->row_array() > 0) {
+                    $result = $sql->row_array();
+                    return $result;
+                } else {
+                    return [];
+                }
         }
     }
 
@@ -206,6 +216,7 @@ class QueryModel extends CI_Model {
                                                 ->limit($limit, $offset)
                                                 ->get($table);
                 if($sql->num_rows() > 0) {
+                        
                         return $sql->result_array();
                 } else {
                         return [];
