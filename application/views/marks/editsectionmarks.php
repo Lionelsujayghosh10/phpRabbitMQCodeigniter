@@ -10,7 +10,7 @@ $this->load->view('includes/sidebar.php'); ?>
       <div class="container-fluid">
         <div class="row mb-2">
           <div class="col-sm-6">
-            <h1>Generate Tabulation Sheet</h1>
+            <h1>Edit Section Marks</h1>
           </div>
           <div class="col-sm-6">
             <ol class="breadcrumb float-sm-right">
@@ -31,7 +31,7 @@ $this->load->view('includes/sidebar.php'); ?>
             <!-- general form elements -->
             <div class="card ccard-info">
               <div class="card-header">
-                <h3 class="card-title">Tabulation Sheet </h3>
+                <h3 class="card-title">Section Marks Edit</h3>
               </div>
               <!-- /.card-header -->
               <!-- form start -->
@@ -74,7 +74,13 @@ $this->load->view('includes/sidebar.php'); ?>
                     </div>
                     <div class="form-group">
                         <label for="exampleInputEmail1">Section </label>
-                        <select name="section_id" class="form-control" id="section_selection">
+                        <select name="section_id" class="form-control section_selection" id="section_id">
+                            <option value="">Select an class first</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="exampleInputEmail1">Subject </label>
+                        <select name="subject_id" class="form-control" id="subject_selection">
                             <option value="">Select an class first</option>
                         </select>
                     </div>
@@ -82,7 +88,7 @@ $this->load->view('includes/sidebar.php'); ?>
                 <!-- /.card-body -->
 
                 <div class="card-footer">
-                  <input type="submit" class="btn btn-primary" name="button" value="Generate" >
+                  <input type="submit" class="btn btn-primary" name="button" value="Fetch List" >
                 </div>
               </form>
             </div>
@@ -107,6 +113,7 @@ $this->load->view('includes/sidebar.php'); ?>
             type    : 'POST',
             data    : {classId : classId},
             success	: function(data){
+              console.log(data);
                 let output = '';
                 if(data !== "error" ){
                   let response = JSON.parse(data);
@@ -117,50 +124,54 @@ $this->load->view('includes/sidebar.php'); ?>
                     for( i = 0; i < response.length; i++ ){
                       output +='<option value ="'+response[i].sectionId+'" data-sectionId="'+response[i].sectionId+'">'+response[i].section_name+'</option>';
                     }
-                    $('#section_selection').html(output);
+                    $('#section_id').html(output);
                     $('#subject_selection').html('<option value = "" >Select an section first</option>');
                   }else{
                     let output ='<span class="help-block"><i class="icon-remove-sign"></i> <font color="red"> No Section Found under this class!</font></span>';
-                    $('#section_selection').html('<option value = "" >Select an section first</option>');
+                    $('#section_id').html('<option value = "" >Select an section first</option>');
                   }
                 }else{
                   output += '<option value = "0" >'+"No Sections Created"+'</option>';
-                  $('#section_selection').html(output);
+                  $('#section_id').html(output);
                 }
             }
         });
     });
 
-
-
-    $(document.body).on('change', '#section_selection', function(){
-        let sectionId  = $(this).children("option:selected").attr('data-sectionId');
-        $.ajax({
-            url     : '<?php echo base_url("Exam/listSubject");?>',
-            type    : 'POST',
-            data    : {sectionId : sectionId},
-            success	: function(data){
-              let output = '';
-              if(data !== "error" ){
-                let response = JSON.parse(data);
-                if(response.length > 0){
-                  let i;
-                  let output = '';
-                  output += '<option value = "" >'+"Select Subject"+'</option>';
-                  for( i = 0; i < response.length; i++ ){
-                    output +='<option value ="'+response[i].subject_id+'" data-sectionId="'+response[i].subject_id+'">'+response[i].subject_name+'</option>';
-                  }
-                  $('#subject_selection').html(output);
-                } else {
-                  let output ='<span class="help-block"><i class="icon-remove-sign"></i> <font color="red"> No subject Found under this section!</font></span>';
-                  $('#subject_selection').html(output);
-                }
-              } else {
-                output += '<option value = "0" >'+"No Subject Created"+'</option>';
-                $('#subject_selection').html(output);
+    $(document.body).on('change', '.section_selection', function(){
+      let class_Id = '.class_selection';
+      let sectionId = $(this).children("option:selected").attr('data-sectionId');
+      let classId   = $(class_Id).children("option:selected").attr('data-classId');
+      console.log(sectionId+"ss"+classId);
+      $.ajax({
+        url : '<?php echo base_url("Exam/listSubject");?>',
+        type: 'POST', 
+        data:  {sectionId:sectionId},
+        success: function(data){console.log(data);
+          if(data !== "error" ){
+            let response =JSON.parse(data);
+            //console.log(response);
+            if(response.length>0){
+              let i;
+              let output="";
+              output += '<option>Select Subject</option>';
+              for(i=0; i<response.length; i++){
+                  output  +=  '<option value="'+response[i].subject_id+'">'+response[i].subjectName+'</option>';
+                  console.log(output);
               }
+              $('#subject_selection').html(output);
+            }else{
+              let output = '<option value = "0" >'+"No Subject Assigned!"+'</option>';
+                  $('#subject_selection').html(output);
             }
-        });
+          }else{
+            let output = '<option value = "0" >'+"No Subject Assigned!"+'</option>';
+                  $('#subject_selection').html(output);
+          }
+        }
+      });
     });
+
+    
 
 </script>

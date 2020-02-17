@@ -278,8 +278,28 @@ class QueryModel extends CI_Model {
                 } else {
                     return [];
                 }
+            case 'subjects':
+                $sql = $this->db->select('subjectId, subject_code, subject_name')
+                                ->where($conditionArray)
+                                ->get($table);
+                if($sql->row_array() > 0) {
+                    $result = $sql->result_array();
+                    return $result;
+                } else {
+                    return [];
+                }
             case 'students':
                 $sql = $this->db->select('studentId, student_name, student_id, parent_id, student_rollNumber')
+                                ->where($conditionArray)
+                                ->get($table);
+                if($sql->row_array() > 0) {
+                    $result = $sql->result_array();
+                    return $result;
+                } else {
+                    return [];
+                }
+            case 'student_marks':
+                $sql = $this->db->select('studentMarksId,student_id,highestMarks,total_marks,otained_marks')
                                 ->where($conditionArray)
                                 ->get($table);
                 if($sql->row_array() > 0) {

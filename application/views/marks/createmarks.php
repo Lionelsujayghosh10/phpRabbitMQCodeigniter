@@ -85,6 +85,10 @@ $this->load->view('includes/sidebar.php'); ?>
                             <option value="">Select an class first</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label for="exampleInputEmail1">Highest Marks </label>
+                        <input type="text" name="highest_marks"  class="form-control" placeholder="Enter Highest Marks" required="required" autocomplete="off">
+                    </div>
 
                     <div class="form-group">
                         <label for="exampleInputEmail1">Total Marks </label>
@@ -140,6 +144,7 @@ $this->load->view('includes/sidebar.php'); ?>
                       output +='<option value ="'+response[i].sectionId+'" data-sectionId="'+response[i].sectionId+'">'+response[i].section_name+'</option>';
                     }
                     $('#section_selection').html(output);
+                    console.log(output);
                     $('#subject_selection').html('<option value = "" >Select an section first</option>');
                   }else{
                     let output ='<span class="help-block"><i class="icon-remove-sign"></i> <font color="red"> No Section Found under this class!</font></span>';
@@ -170,7 +175,7 @@ $this->load->view('includes/sidebar.php'); ?>
                   let output = '';
                   output += '<option value = "" >'+"Select Subject"+'</option>';
                   for( i = 0; i < response.length; i++ ){
-                    output +='<option value ="'+response[i].subject_id+'" data-sectionId="'+response[i].subject_id+'">'+response[i].subject_name+'</option>';
+                    output +='<option value ="'+response[i].subject_id+'" data-sectionId="'+response[i].subject_id+'">'+response[i].subjectName+'</option>';
                   }
                   $('#subject_selection').html(output);
                 } else {

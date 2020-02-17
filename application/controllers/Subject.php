@@ -134,7 +134,37 @@ class Subject extends CI_Controller {
         echo $e->getMessage(); die;
     }
   }
+  /**
+   * @purpose:create subject
+   */
 
+  public function createSubject(){
+    try{
+      if(!empty($this->input->post()) && $this->input->post('Create') === 'Create') {
+        $conditionArray   =  array('subject_code' => trim(strip_tags($this->input->post('subject_code'))), 'isDelete' => '0');
+        $checkAlreadyGiven = $this->QueryModel->getWhere($conditionArray, 'subjects');
+        //echo "<pre>"; print_r($checkAlreadyGiven);die;
+        if(empty($checkAlreadyGiven)){
+          $createSubject = array(
+            'subject_code' => trim(strip_tags($this->input->post('subject_code'))),
+            'subject_name' => trim(strip_tags($this->input->post('subject_name')))
+          );
+          $this->QueryModel->insertDataIntoTable($createSubject, 'subjects');
+          $this->session->set_flashdata('success', 'Subject created successfully.');
+          redirect('Subject/createSubject', 'refresh');
+        }else{
+          $this->session->set_flashdata('error', 'Subject Code already exists.');
+          redirect('Subject/createSubject', 'refresh');
+        }
+      }else{
+      $this->load->view('subjects/createsubject.php');
+      
+      }
+      
+    }catch(Exception $e){
+        echo $e->getMessage(); die;
+    }
+  }
 
   /**
    * @purpose: subject list
@@ -164,7 +194,6 @@ class Subject extends CI_Controller {
           $config['cur_tag_close'] 			= 	'</a></li>';
           $config['num_tag_open'] 			= 	'<li>';
           $config['num_tag_close'] 			= 	'</li>';
-          $this->pagination->initialize($config);
           $details['data'] 					= 	$this->QueryModel->fetchDataWithLimitOffset('subjects', $config['per_page'], $offset, array('isDelete' => '0'));
       $this->load->view('subjects/listsubject.php', $details);
       } catch(Exception $e) {
@@ -172,7 +201,67 @@ class Subject extends CI_Controller {
       }
   }
 
-
+  /**
+   * @purpose:create assigned subject
+   */
+  public function createAssignSubject(){
+    try{
+      if(!empty($this->input->post()) && $this->input->post('Assign') === 'Assign') {
+        //print_r($this->input->post());die;
+        if($this->input->post('sectionStatus') === 'true'){ 
+          if(!empty($this->input->post('class_id'))){
+          $condition = array(
+          'class_id' =>  $this->input->post('class_id'),
+          'isDelete' =>   '0'
+          );
+          $listSection = $this->QueryModel->getMultipleRow($condition, 'sections');
+            foreach($listSection as $section){ 
+              $condition   =  array('class_id' => $section['class_id'],'section_id' => $section['sectionId'],'subject_id' => trim(strip_tags($this->input->post('subject_id'))), 'isDelete' => '0');
+              //echo "<pre>";print_r($condition);die;
+              $check = $this->QueryModel->getWhere($condition, 'assign_subject');
+              //echo "<pre>";print_r($check);die;
+              if(empty($check)){
+                $create = array(
+                  'class_id'   => trim(strip_tags($this->input->post('class_id'))),
+                  'section_id' => $section['sectionId'],
+                  'subject_id' => trim(strip_tags($this->input->post('subject_id')))
+                );
+                $this->QueryModel->insertDataIntoTable($create, 'assign_subject');
+              }else{
+                continue;
+              }
+            }
+            $this->session->set_flashdata('success', 'Subject Assigned Successfully.');
+            redirect('Subject/createAssignSubject', 'refresh');
+          }
+        }else{
+          $conditionArray   =  array('class_id' => trim(strip_tags($this->input->post('class_id'))),'section_id' => trim(strip_tags($this->input->post('section_id'))),'subject_id' => trim(strip_tags($this->input->post('subject_id'))), 'isDelete' => '0');
+          //echo "<pre>";print_r($conditionArray);die;
+          $checkAlreadyGiven = $this->QueryModel->getWhere($conditionArray, 'assign_subject');
+          if(empty($checkAlreadyGiven)){
+            $create = array(
+              'class_id'   => trim(strip_tags($this->input->post('class_id'))),
+              'section_id' => trim(strip_tags($this->input->post('section_id'))),
+              'subject_id' => trim(strip_tags($this->input->post('subject_id')))
+            );
+            $this->QueryModel->insertDataIntoTable($create, 'assign_subject');
+            $this->session->set_flashdata('success', 'Subject Assigned Successfully.');
+            redirect('Subject/createAssignSubject', 'refresh');
+          }else{
+            $this->session->set_flashdata('error', 'Assigned Subject already exists.');
+            redirect('Subject/createAssignSubject', 'refresh');
+          }
+        }
+      }else{
+        $data['classes']            =   $this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'classes');
+        $data['subjects']           =   $this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'subjects');
+        $this->load->view('subjects/createassignsubject.php', $data);
+      }
+    }catch(Exception $e){
+          echo $e->getMessage(); die;
+    }
+    
+  }
 
   /**
    * @purpose: assigned subject list
@@ -202,7 +291,6 @@ class Subject extends CI_Controller {
           $config['cur_tag_close'] 			= 	'</a></li>';
           $config['num_tag_open'] 			= 	'<li>';
           $config['num_tag_close'] 			= 	'</li>';
-          $this->pagination->initialize($config);
           $data 					            = 	$this->QueryModel->fetchDataWithLimitOffset('assign_subject', $config['per_page'], $offset, array('isDelete' => '0'));
           if(!empty($data)) {
               foreach($data as $single_assignSubject) {
@@ -277,63 +365,22 @@ class Subject extends CI_Controller {
     }
   }
 
-
-
   /**
-   * @purpose: search from assign subject list
+   * @purpose: list sections
    */
-  public function assignSubjectSearch($offset = 0) {
-    try {
-      if(!empty($_GET['table_search']) && $_GET['search'] === 'search') {
-        if($offset > 1) {
-          $offset 						        = 	$offset - 1;
-          $offset 						        = 	(int)$offset * 10;
-        }else {
-          $offset 						        = 	(int)$offset;
-        }
-        $config['base_url'] 				  = 	base_url('Student/search');
-        $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRowsForSearch($_GET['table_search'], 'assign_subject');
-        $config['per_page'] 			  	= 	10;
-        $config['num_links'] 				  = 	5;
-        $config['use_page_numbers'] 	= 	TRUE;
-        $config['full_tag_open'] 			= 	'<ul class="pagination">';
-        $config['fuldeleteSubjectl_tag_close'] 		= 	'</ul>';
-        $config['prev_link'] 				  = 	'&laquo;';
-        $config['prev_tag_open'] 			= 	'<li>';
-        $config['prev_tag_close'] 		= 	'</li>';
-        $config['next_tag_open'] 			= 	'<li>';
-        $config['next_tag_close'] 		= 	'</li>';
-        $config['cur_tag_open'] 			= 	'<li class="active"><a href="#">';
-        $config['cur_tag_close'] 			= 	'</a></li>';
-        $config['num_tag_open'] 			= 	'<li>';
-        $config['num_tag_close'] 			= 	'</li>';
-        $config['reuse_query_string'] =   true;
 
-      } else {
-        redirect('Student/listStudent', 'refresh');
+  public function sectionList(){
+    try{
+      if(!empty($this->input->post('classId'))){
+        $conditionArray = array(
+          'class_id' =>  $this->input->post('classId'),
+          'isDelete' =>   '0'
+        );
+        $listSection = $this->QueryModel->getMultipleRow($conditionArray, 'sections');
+        echo json_encode($listSection);
       }
-    } catch(Thorwable $e) {
+    }catch(Exception $e){
       echo $e->getMessage(); die;
-    }
-  }
-
-  /**
-   * @purpose : delete subject
-   */
-  public function deleteSubject(){
-    try {
-      if(!empty($this->input->post('subject_id'))) {
-        $delete_status = $this->QueryModel->deleteDataFromDataBase(array('subjectId' => $this->input->post('subject_id')), 'subjects');
-        if($delete_status === true) {
-          echo "success"; die;
-        } else {
-          echo "error"; die;
-        }
-      } else {
-        echo "error"; die;
-      }
-    } catch(Thorwable $e) {
-      echo "error"; die;
     }
   }
 

@@ -63,7 +63,7 @@ class ClassSection extends CI_Controller {
 											'section_code' 		=> 	$single_value[2], 
 											'section_name' 		=> 	$single_value[3], 
 											'class_id' 			=> 	$checkClassExistsOrnot['classId'],
-											'isDelete'			=> '0'
+											'isDelete'			=>  '0'
 										);
 										$sectionId = $this->QueryModel->insertDataIntoTable($classArray, 'sections');
 									}
@@ -240,6 +240,32 @@ class ClassSection extends CI_Controller {
 		}
 	}
 
+	/**
+	 * @purpose: fetch section details agianst sectionId
+	 */
+	public function fetchSection($sectionId) {
+		try { 
+			if(!empty($sectionId) || !is_null($sectionId) || trim($sectionId) !== '') {
+				$sectionId 					= 	base64_decode($sectionId);
+				if(is_numeric($sectionId) === true) {
+					$sectionConditionArray 	= 	array('sectionId' => $sectionId, 'isDelete' => '0');
+					$data['section'] 			= 	$this->QueryModel->getWhere($sectionConditionArray, 'sections');
+					//echo "<pre>"; print_r($data['section']);die;
+					if(!empty($data['section'])) {
+						$this->load->view('sectiondetails.php', $data);
+					} else {
+						redirect('ClassSection/listSection', 'refresh');
+					}
+				} else {
+					redirect('ClassSection/listSection', 'refresh');
+				}
+			} else {
+				redirect('ClassSection/listSection', 'refresh');
+			}
+		} catch(Exception $e) {
+			echo $e->getMessage(); die;
+		}
+	}
 
 	/**
 	 * @purpose: edit class detail
@@ -282,6 +308,48 @@ class ClassSection extends CI_Controller {
 		}
 	}
 
+	/**
+	 * @purpose: edit section detail
+	*/
+
+	public function editSection(){
+		try{
+			if(!empty($this->input->post()) && $this->input->post('update') === 'Update' && !empty($this->input->post('sectionId'))) {
+				$this->form_validation->set_rules('section_name', 'section_name', 'required');
+				$this->form_validation->set_rules('section_code', 'section_code', 'required');
+				if ($this->form_validation->run() === FALSE) {
+                    $this->session->set_flashdata('error', validation_errors());
+					redirect('ClassSection/fetchSection/'.base64_encode($this->input->post('sectionId')), $this->input->post('sectionId'), 'refresh');
+				} else { 
+					$sectionConditionArray 		= 	array('section_code' => trim(strip_tags($this->input->post('section_code'))), 'isDelete' => '0');
+					$sectionCodeExists 			= 	$this->QueryModel->getWhere($sectionConditionArray, 'sections');
+					//echo "<pre>";print_r($sectionCodeExists);die;
+					if(!empty($sectionCodeExists)) {
+						$this->session->set_flashdata('error', 'Section code already exists.');
+						redirect('ClassSection/fetchSection/'.base64_encode($this->input->post('sectionId')), 'refresh');
+					} else {
+						$array 					= 	array('sectionId' => $this->input->post('sectionId'));
+						$updateArray = array(
+							'section_code' 		=> 	trim(strip_tags($this->input->post('section_code'))),
+							'section_name' 		=> 	trim(strip_tags($this->input->post('section_name')))
+						);
+						$updateStatus = $this->QueryModel->updateData($updateArray, $array, 'sections');
+						if($updateStatus === true) {
+							$this->session->set_flashdata('success', 'Section updated successfully.');
+							redirect('ClassSection/listSection', 'refresh');
+						} else {
+							$this->session->set_flashdata('error', 'Try again.');
+							redirect('ClassSection/listSection', 'refresh');
+						}
+					}
+				}
+			} else {
+				redirect('ClassSection/listSection', 'refresh');
+			}
+		} catch(Exception $e) {
+			echo $e->getMessage(); die;
+		}
+	}
 
 	
 }

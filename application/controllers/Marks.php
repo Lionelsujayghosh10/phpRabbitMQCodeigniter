@@ -26,6 +26,7 @@ class Marks extends CI_Controller{
   public function studentMark(){
     try {
       if(!empty($this->input->post()) && $this->input->post('create') === 'Create') {
+        //echo "<pre>";print_r($this->input->post());die;
         $studentMarksConditionArray = array(
           'class_id' => trim(strip_tags($this->input->post('class_id'))),
           'section_id' => trim(strip_tags($this->input->post('section_id'))),
@@ -40,6 +41,7 @@ class Marks extends CI_Controller{
               'class_id' => (!empty(trim(strip_tags($this->input->post('class_id')))) ? trim(strip_tags($this->input->post('class_id'))) : "N/A"),
               'subject_id' => (!empty(trim(strip_tags($this->input->post('subject_id')))) ? trim(strip_tags($this->input->post('subject_id')))  :"N/A"),
               'total_marks' => (!empty(trim(strip_tags($this->input->post('total_marks')))) ? trim(strip_tags($this->input->post('total_marks'))) : "N/A"),
+              'highestMarks' => (!empty(trim(strip_tags($this->input->post('highest_marks')))) ? trim(strip_tags($this->input->post('highest_marks'))) : "N/A"),
               'student_id' => (!empty(trim(strip_tags($this->input->post('studentId')[$i]))) ? trim(strip_tags($this->input->post('studentId')[$i])) : "0"),
               'otained_marks' => (!empty(trim(strip_tags($this->input->post('marks')[$i]))) ? trim(strip_tags($this->input->post('marks')[$i])) : "0")
             );
@@ -538,4 +540,224 @@ class Marks extends CI_Controller{
       echo $e->getMessage(); die;
     }
   }
+
+  /**
+   * @purpose: update marks for multiple students
+   */
+  public function updateMarks(){
+    try{
+      if(!empty($this->input->post()) && $this->input->post('create') === 'Edit') {
+        for($i = 0; $i < count($this->input->post('primaryKey')); $i++) {
+          $updateArray  = array(
+            'otained_marks'  =>  $this->input->post('marks')[$i],
+            'highestMarks'   =>  $this->input->post('highest_marks'),
+            'total_marks'    =>  $this->input->post('total_marks')
+          );
+          $conditionArray =  array(
+                            'studentMarksId' => $this->input->post('primaryKey')[$i],
+                            'isDelete'  => '0'
+                        );
+          $this->QueryModel->updateData($updateArray, $conditionArray, 'student_marks');
+        }
+        $this->session->set_flashdata('success', 'Marks update sucessfully done.');
+        redirect('Marks/editSectionMarks', 'refresh');
+      }
+
+    }catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+  /**
+   * @purpose: Edit section marks
+   */
+  public function editSectionMarks() {
+    try {
+      if(!empty($this->input->post()) && @$this->input->post('button') === 'Fetch List') { //echo "aa";die;
+        $this->form_validation->set_rules('exam_id', 'exam', 'required');
+        $this->form_validation->set_rules('class_id', 'class', 'required');
+        $this->form_validation->set_rules('section_id', 'section', 'required');
+        $this->form_validation->set_rules('subject_id', 'subject', 'required');
+        if ($this->form_validation->run() === FALSE) {
+          $this->session->set_flashdata('error',validation_errors());
+          redirect('Marks/editSectionMarks', 'refresh');
+        } else {
+          $finalStudentArray  =  array();
+          $conditionArray = array(
+                    'section_id' => $this->input->post('section_id'),
+                    'subject_id' => $this->input->post('subject_id'),
+                    'exam_id' => $this->input->post('exam_id'),  
+                    'isDelete' => '0'              
+                );
+          $studentList    =   $this->QueryModel->getMultipleRow($conditionArray, 'student_marks');
+          foreach($studentList as $key=>$Student){
+            $conditionArray =  array(
+                            'studentId' => $Student['student_id'],
+                            'isDelete'  => '0'
+                        );
+            $studentName   =  $this->QueryModel->getWhere($conditionArray, 'students');
+            //echo "<pre>"; print_r($studentName); die;
+            if($key === 0){
+              $className    =  $this->QueryModel->getWhere(array('classId'=>$this->input->post('class_id'),'isDelete' => '0'), 'classes');
+              $sectionName  =  $this->QueryModel->getWhere(array('sectionId'=>$this->input->post('section_id'),'isDelete' => '0'), 'sections');
+              $subjectName  =  $this->QueryModel->getWhere(array('subjectId'=>$this->input->post('subject_id'),'isDelete' => '0'), 'subjects');
+            }else{
+              $className    = array();
+              $sectionName  = array();
+              $subjectName  = array();
+            }
+            $Student['className']    =  !empty($className['class_name'])?$className['class_name']:"N/A";
+            $Student['sectionName']  =  !empty($sectionName['section_name'])?$sectionName['section_name']:"N/A";
+            $Student['subjectName']  =  !empty($subjectName['subject_name'])?$subjectName['subject_name']:"N/A";
+            $Student['studentName']  =  !empty($studentName['student_name'])?$studentName['student_name']:"N/A";
+            $finalStudentArray[]     =  $Student;
+          }
+          if(empty($finalStudentArray)){
+            $this->session->set_flashdata('error', 'No Record Found!');
+            redirect('Marks/editSectionMarks', 'refresh');
+          }else{
+            $final['list'] = $finalStudentArray;
+            //echo "<pre>"; print_r($final);die;
+            $this->load->view('marks/editMarks',$final);
+          }
+        }
+      } else {
+        $data['exams']              =   $this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'exams');
+        $data['classes']            =   $this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'classes');
+        $this->load->view('marks/editsectionmarks', $data);
+      }
+    }catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    }
+  }
+
+  /**
+   * @purpose: upload CSV
+   */
+
+  public function uploadCsv(){
+    try{
+      if(!empty($this->input->post()) && $this->input->post('create') === 'Upload'){
+        //echo "<pre>";print_r($_FILES);die;
+        if(!empty($_FILES)){
+          if($_FILES['csv']['type'] === 'text/csv'){
+            $file = fopen($_FILES["csv"]["tmp_name"],"r");
+            $finalArr = array();
+            while($data = fgetcsv($file)){
+              //echo "<pre>";print_r($data[6]);die;
+              if(empty($data[0]) || is_null($data[0]) || trim($data[0]) === '') {
+                  $this->session->set_flashdata('error','Exam name can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              if(empty($data[1]) || is_null($data[1]) || trim($data[1]) === '') {
+                  $this->session->set_flashdata('error','Class Name can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              if(empty($data[2]) || is_null($data[2]) || trim($data[2]) === '') {
+                  $this->session->set_flashdata('error','Section Name can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              if(empty($data[4]) || is_null($data[4]) || trim($data[4]) === '') {
+                  $this->session->set_flashdata('error','Student Name can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              if(empty($data[6]) || is_null($data[6]) || trim($data[6]) === '') {
+                  $this->session->set_flashdata('error','Subject Name can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              if(empty($data[7]) || is_null($data[7]) || trim($data[7]) === '') {
+                  $this->session->set_flashdata('error','Total marks can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              if(is_null($data[8]) || trim($data[8]) === '') {
+                  $this->session->set_flashdata('error','obtained marks can not be empty.Try again!');
+                  redirect('Marks/uploadCsv', 'refresh');
+              }
+              $examConditionArray      =   array('exam_name' => $data[0], 'isDelete' => '0');
+              $exam                    =   $this->QueryModel->getWhere($examConditionArray, 'exams');
+              //echo "<pre>";print_r($exam);die;
+              if(!empty($exam)){
+                $classConditionArray   =   array('class_name' => $data[1], 'isDelete' => '0');
+                $class                 =   $this->QueryModel->getWhere($classConditionArray, 'classes');
+                //echo "<pre>";print_r($class);
+                if(!empty($class)){
+                  $sectionConditionArray   =   array('class_id' => $class['classId'],'section_name' => $data[2], 'isDelete' => '0');
+                  $section                 =   $this->QueryModel->getWhere($sectionConditionArray, 'sections');
+                  //echo "<pre>";print_r($section);die;
+                  if(!empty($section)){
+                    $studentName = $data[4];
+                    $name = explode(" ",$studentName);
+                    $count= count($name);
+                     //echo $count;die;
+                    if ($count === 2){
+                      $stud = $name[1]." ".$name[0];
+                    }else{
+                      $stud = $name[2]." ".$name[0]." ".$name[1];
+                    }
+                    $studentConditionArray   =   array('class_id' => $class['classId'],'section_id' => $section['sectionId'], 'student_name' =>$stud, 'isDelete' => '0');
+                    $student                 =   $this->QueryModel->getWhere($studentConditionArray, 'students');
+                    //echo "<pre>";print_r($student);die;
+                    if(!empty($student)){
+                      $subjectConditionArray   =   array('subject_name' => $data[6], 'isDelete' => '0');
+                      $subject                   =   $this->QueryModel->getWhere($subjectConditionArray, 'subjects');
+                      if(!empty($subject)){
+                        $ConditionArray   =   array('subject_id' => $subject['subjectId'],'student_id'=> $student['studentId'], 'section_id' => $section['sectionId'], 'class_id' => $class['classId'], 'exam_id' => $exam['examId'],'isDelete' => '0');
+                        $studentMarks     =   $this->QueryModel->getWhere($ConditionArray, 'student_marks');
+                        //echo "<pre>";print_r($studentMarks);die;
+                        if(empty($studentMarks)){
+                          $studentArray = array(
+                              'subject_id' =>  $subject['subjectId'],
+                              'student_id' => $student['studentId'], 
+                              'section_id' => $section['sectionId'], 
+                              'class_id'   => $class['classId'],
+                              'exam_id'    => $exam['examId'],
+                              'highestMarks' => 0,
+                              'total_marks'  => $data[7],
+                              'otained_marks' => $data[8],
+                              'isDelete'   => '0'
+                          );
+                          $marksEntry = $this->QueryModel->insertDataIntoTable($studentArray, 'student_marks');
+                        }else{
+                          continue;
+                        }
+                      }else{
+                        $this->session->set_flashdata('error','Subject does not exist!');
+                        redirect('Marks/uploadCsv', 'refresh');
+                      }
+                    }else{
+                      $this->session->set_flashdata('error','Student name does not exist!');
+                      redirect('Marks/uploadCsv', 'refresh');
+                    }
+                  }else{
+                    $this->session->set_flashdata('error','Section does not exist!');
+                    redirect('Marks/uploadCsv', 'refresh');
+                  }
+
+                }else{
+                  $this->session->set_flashdata('error','Class does not exist!');
+                  redirect('Marks/uploadCsv', 'refresh');
+                }
+              }else{
+                $this->session->set_flashdata('error','Exam is not created!');
+                redirect('Marks/uploadCsv', 'refresh');
+              } 
+            }
+            $this->session->set_flashdata('success', 'CSV uploaded successfully');
+            redirect('Marks/uploadCsv', 'refresh');
+          }else{
+            $this->session->set_flashdata('error', 'Invalid Type!');
+            redirect('Marks/uploadCsv', 'refresh');
+          }
+        }else {
+          $this->session->set_flashdata('error','CSV file is required.Try again!');
+          redirect('Marks/uploadCsv', 'refresh');
+        }
+      }else{
+        $this->load->view('marks/csvupload');
+      }  
+    }catch(Thorwable $e){
+      echo $e->getMessage(); die;
+    }
+  }
+
 }

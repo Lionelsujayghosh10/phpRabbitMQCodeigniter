@@ -69,7 +69,7 @@
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a href="javascript:void(0);" class="nav-link">
+                <a href="<?php echo base_url('Subject/createSubject'); ?>" class="nav-link">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Create Subject</p>
                 </a>
@@ -78,6 +78,12 @@
                 <a href="<?php echo base_url('Subject/listSubject'); ?>" class="nav-link">
                   <i class="far fa-circle nav-icon"></i>
                   <p>List Subject</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="<?php echo base_url('Subject/createAssignSubject'); ?>" class="nav-link">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Create Assign Subject</p>
                 </a>
               </li>
               <li class="nav-item">
@@ -174,24 +180,31 @@
                   <p>Marks Entery</p>
                 </a>
               </li>
-              <li class="nav-item">
-                <a href="<?php echo base_url('Marks/marksEntry'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'marksEntry') { echo "active"; } ?>">
+              <!-- <li class="nav-item">
+                <a href="<?php //echo base_url('Marks/marksEntry'); ?>" class="nav-link <?php //if($this->uri->segment(2) === 'marksEntry') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Single student Marks Entry</p>
                 </a>
-              </li>
-              <li class="nav-item">
-                <a href="<?php echo base_url('Marks/csvUpload'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'csvUpload') { echo "active"; } ?>">
+              </li> -->
+              <!-- <li class="nav-item">
+                <a href="<?php //echo base_url('Marks/csvUpload'); ?>" class="nav-link <?php //if($this->uri->segment(2) === 'csvUpload') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>CSV Upload</p>
                 </a>
-              </li>
+              </li> -->
               <li class="nav-item">
                 <a href="<?php echo base_url('Marks/listStudentMarks'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'listStudentMarks') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>List Studnent Marks</p>
                 </a>
               </li>
+              <li class="nav-item">
+                <a href="<?php echo base_url('Marks/editSectionMarks'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'editSectionMarks') { echo "active"; } ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>Edit Section Marks</p>
+                </a>
+              </li>
+
               <li class="nav-item">
                 <a href="<?php echo base_url('Marks/tabulationSheet'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'tabulationSheet') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
@@ -203,6 +216,12 @@
                 <a href="<?php echo base_url('Marks/tabulationSheetList'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'tabulationSheetList') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Tabulation Sheet List</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="<?php echo base_url('Marks/uploadCsv'); ?>" class="nav-link">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>CSV Upload</p>
                 </a>
               </li>
               <li class="nav-item">

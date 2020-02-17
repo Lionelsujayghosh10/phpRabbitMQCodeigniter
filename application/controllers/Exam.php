@@ -102,13 +102,18 @@ class Exam extends CI_Controller {
                 );
                 $subjectList = $this->QueryModel->getMultipleRow($conditionArray, 'assign_subject');
                 if(!empty($subjectList)) {
-                    foreach($subjectList as $single_subject){
+                    foreach($subjectList as $single_subject){ //echo "<pre>";print_r($single_subject);die;
                         $subjectConditionArray = array(
                             'subjectId' => $single_subject['subject_id'],
                             'isDelete' => '0'
                         );
-                        $single_subject['subject_name'] = (!empty($this->QueryModel->getWhere($subjectConditionArray, 'subjects')['subject_name']) ? $this->QueryModel->getWhere($subjectConditionArray, 'subjects')['subject_name'] : "N/A");
-                        $value[] = $single_subject;
+                        $subject      =   $this->QueryModel->getWhere($subjectConditionArray, 'subjects');
+                        if(!empty($subject)){ 
+                            $single_subject['subjectName']      =   $subject['subject_name'];
+                        }else{
+                            $single_subject['subjectName']  =  "N/A";
+                        }
+                        $value[]             =  $single_subject;
                     }
                     echo json_encode($value); die;
                 } else {
