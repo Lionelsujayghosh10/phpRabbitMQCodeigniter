@@ -87,7 +87,7 @@ $this->load->view('includes/sidebar.php'); ?>
                     </div>
                     <div class="form-group">
                         <label for="exampleInputEmail1">Highest Marks </label>
-                        <input type="text" name="highest_marks"  class="form-control" placeholder="Enter Highest Marks" required="required" autocomplete="off">
+                        <input type="text" name="highest_marks"  class="form-control" placeholder="Enter Highest Marks"  autocomplete="off">
                     </div>
 
                     <div class="form-group">

@@ -8,9 +8,7 @@ class Exam extends CI_Controller {
 
     public function __construct() {
         parent:: __construct();
-        if(empty($this->session->userdata('email'))) {
-            redirect('Login', 'refresh');
-        }
+
         
         $this->load->library('form_validation');
         $this->load->model('QueryModel');
@@ -93,6 +91,7 @@ class Exam extends CI_Controller {
     /**
      * @purpose: list subject aganist sectionId
      */
+
     public function listSubject() {
         try {
             if(!empty($this->input->post('sectionId'))) {
@@ -123,9 +122,9 @@ class Exam extends CI_Controller {
         } catch(Exception $e) {
             echo $e->getMessage(); die;
         }
-
-
     }
+    
+    
     /**
      * @purpose: list exam
      */

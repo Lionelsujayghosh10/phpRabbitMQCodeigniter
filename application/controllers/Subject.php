@@ -9,9 +9,7 @@ class Subject extends CI_Controller {
 
     public function __construct() {
         parent:: __construct();
-        if(empty($this->session->userdata('email'))) {
-            redirect('Login', 'refresh');
-        }
+
 
         $this->load->library('form_validation');
         $this->load->model('QueryModel');
@@ -134,6 +132,7 @@ class Subject extends CI_Controller {
         echo $e->getMessage(); die;
     }
   }
+
   /**
    * @purpose:create subject
    */
@@ -158,13 +157,12 @@ class Subject extends CI_Controller {
         }
       }else{
       $this->load->view('subjects/createsubject.php');
-      
       }
-      
     }catch(Exception $e){
         echo $e->getMessage(); die;
     }
   }
+
 
   /**
    * @purpose: subject list
@@ -262,6 +260,7 @@ class Subject extends CI_Controller {
     }
     
   }
+
 
   /**
    * @purpose: assigned subject list

@@ -67,7 +67,7 @@
                                   
                                 </td>
                                 <td><?php if($single_tabulation['isComplete'] === '0') { ?> <button class="btn btn-xs btn-primary" disabled>Download</button></button> <?php } else { ?> <a href="<?php echo base_url('Marks/download/').urlencode($single_tabulation['csv_name']); ?>"><button class="btn btn-xs btn-primary">Download</button></a>&nbsp; &nbsp; <button class="btn btn-xs btn-warning deleteSheet" id="<?php echo $single_tabulation['sheetId'] ?>">Delete</button> <?php } ?></td>
-
+                                <td><a target="_blank" href="<?php echo base_url('Marks/getSheetData/').base64_encode($single_tabulation['sheetId']); ?>"><button class="btn btn-xs btn-success">Get Data</button></a></td>
                             </tr>
                         <?php } ?>
                     <?php } else { ?>

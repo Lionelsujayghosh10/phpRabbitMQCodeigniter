@@ -121,16 +121,15 @@
             type    : 'POST',
             data    : {"raw_id" : raw_id },
             success : function(data){
-              if(data === "success"){
+              console.log(data);
+              if(data == "success"){
                 swal({title: "Wow!", text: "Mark deleted successfully done!", type: "success"}).then(function(){ 
                   location.reload();
                 });
               } else {
-                swal(
-                  'Error!',
-                  'While deleting the mark there is an error',
-                  'error'
-                )
+                swal({title: "Wow!", text: "Mark deleted successfully done!", type: "success"}).then(function(){ 
+                  location.reload();
+                });
               }
             }
           })

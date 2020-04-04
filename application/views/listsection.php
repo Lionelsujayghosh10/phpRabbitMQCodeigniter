@@ -60,7 +60,7 @@
                                 <td><?php echo  (!empty($single_class_section['class_name']) ? $single_class_section['class_name'] : "N/A"); ?></td>
                                 <td><?php echo  (!empty($single_class_section['section_code']) ? $single_class_section['section_code'] : "N/A"); ?></td>
                                 <td><?php echo  (!empty($single_class_section['section_name']) ? $single_class_section['section_name'] : "N/A"); ?></td>
-                                <td><a href="<?php echo base_url('ClassSection/fetchSection/').base64_encode($single_class_section['sectionId']); ?>"><button class="btn btn-warning btn-xs">Edit</button></a>&nbsp; &nbsp; <button id="<?php echo (!empty($single_class_section['sectionId']) ? $single_class_section['sectionId'] : "N/A"); ?>" class="btn btn-danger btn-xs deleteButton">Delete</button></td>
+                                <td><a href="javascript:void(0);"><button class="btn btn-warning btn-xs">Edit</button></a>&nbsp; &nbsp; <button id="<?php echo (!empty($single_class_section['sectionId']) ? $single_class_section['sectionId'] : "N/A"); ?>" class="btn btn-danger btn-xs deleteButton">Delete</button></td>
                             
                             </tr>
                         <?php } ?>

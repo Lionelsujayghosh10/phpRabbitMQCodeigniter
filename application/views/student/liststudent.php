@@ -1,3 +1,4 @@
+<?php //echo "<pre>"; print_r($students); die;?>
 <?php  $this->load->view('includes/sidebar.php'); ?>
 
 <style>
@@ -69,7 +70,7 @@
                                 <td><?php echo  (!empty($single_student['class_name']) ? $single_student['class_name'] : "N/A"); ?></td>
                                 <td><?php echo  (!empty($single_student['section_name']) ? $single_student['section_name'] : "N/A"); ?></td>
                                 <td><?php echo  (!empty($single_student['student_rollNumber']) ? $single_student['student_rollNumber'] : "N/A"); ?></td>
-                                <td><a href="javascript:void(0);"><button class="btn btn-warning btn-xs">Edit</button></a>&nbsp; &nbsp; <button id="<?php echo (!empty($single_student['studentId']) ? $single_student['studentId'] : "N/A"); ?>" class="btn btn-danger btn-xs deleteButton">Delete</button></td>
+                                <td><a href="<?php echo base_url("Student/EditStudent/".base64_encode($single_student['studentId']));?>"><button class="btn btn-warning btn-xs">Edit</button></a>&nbsp; &nbsp; <button id="<?php echo (!empty($single_student['studentId']) ? $single_student['studentId'] : "N/A"); ?>" class="btn btn-danger btn-xs deleteButton">Delete</button></td>
                             </tr>
                         <?php } ?>
                     <?php } else { ?>

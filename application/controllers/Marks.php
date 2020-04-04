@@ -1,4 +1,4 @@
-<?php
+ <?php
 
 //require_once '/var/www/html/ReportCard/vendor/autoload.php';
 require_once './vendor/autoload.php';
@@ -10,9 +10,7 @@ class Marks extends CI_Controller{
 
   public function __construct() {
     parent:: __construct();
-    if(empty($this->session->userdata('email'))) {
-      redirect('Login', 'refresh');
-    }
+
     $this->load->library('form_validation');
     $this->load->model('QueryModel');
     $this->config->load('rabbitmq');
@@ -26,11 +24,13 @@ class Marks extends CI_Controller{
   public function studentMark(){
     try {
       if(!empty($this->input->post()) && $this->input->post('create') === 'Create') {
-        //echo "<pre>";print_r($this->input->post());die;
+        //echo "<pre>";print_r($this->input->post());die;editSectionMarks
         $studentMarksConditionArray = array(
           'class_id' => trim(strip_tags($this->input->post('class_id'))),
           'section_id' => trim(strip_tags($this->input->post('section_id'))),
-          'exam_id' => trim(strip_tags($this->input->post('exam_id')))
+          'exam_id' => trim(strip_tags($this->input->post('exam_id'))),
+          'subject_id' => trim(strip_tags($this->input->post('subject_id'))),
+          'isDelete' => '0'
         );
         $checkMarksAlreadyGiven = $this->QueryModel->getWhere($studentMarksConditionArray, 'student_marks');
         if(empty($checkMarksAlreadyGiven)) {
@@ -182,9 +182,9 @@ class Marks extends CI_Controller{
               $sheetId          =   $this->QueryModel->insertDataIntoTable($insertArray, 'tabulation_sheet_track');
               $connection = new AMQPStreamConnection($this->config->item('rabbitmq')['host'], 5672, $this->config->item('rabbitmq')['user'], $this->config->item('rabbitmq')['pass']);
               $channel = $connection->channel();
-              $channel->queue_declare('hello', false, false, false, false);
+              $channel->queue_declare('tabulationSheet', false, true, false, false);
               $msg = new AMQPMessage(json_encode(array('exam_id' => trim(strip_tags($this->input->post('exam_id'))), 'class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'sheet_id' => $sheetId)));
-              $channel->basic_publish($msg, '', 'hello');
+              $channel->basic_publish($msg, '', 'tabulationSheet');
               $channel->close();
               $connection->close();
               $this->session->set_flashdata('success', 'Tabulation Sheet will be avaliable after some times.');
@@ -214,7 +214,7 @@ class Marks extends CI_Controller{
       } else {
         $offset 						= 	(int)$offset;
       }
-      $config['base_url'] 				  = 	base_url('Subject/tabulationSheet');
+      $config['base_url'] 				  = 	base_url('Marks/tabulationSheetList');
       $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRows('tabulation_sheet_track');
       $config['per_page'] 				  = 	10;
       $config['num_links'] 				  = 	5;
@@ -256,6 +256,56 @@ class Marks extends CI_Controller{
 
 
   /**
+   * @purpose: Generate PDF list
+   */
+  public function pdfList($offset = 0) {
+    try {
+      if($offset > 1) {
+        $offset 						= 	$offset - 1;
+        $offset 						= 	(int)$offset * 10;
+      } else {
+        $offset 						= 	(int)$offset;
+      }
+      $config['base_url'] 				  = 	base_url('Marks/pdfList');
+      $config['total_rows'] 				= 	$this->QueryModel->getNumberOfRows('pdf_track');
+      $config['per_page'] 				  = 	10;
+      $config['num_links'] 				  = 	5;
+      $config['use_page_numbers'] 	= 	TRUE;
+      $config['full_tag_open'] 			= 	'<ul class="pagination">';
+      $config['full_tag_close'] 		= 	'</ul>';
+      $config['prev_link'] 				  = 	'&laquo;';
+      $config['prev_tag_open'] 			= 	'<li>';
+      $config['prev_tag_close'] 		= 	'</li>';
+      $config['next_tag_open'] 			= 	'<li>';
+      $config['next_tag_close'] 		= 	'</li>';
+      $config['cur_tag_open'] 			= 	'<li class="active"><a href="#">';
+      $config['cur_tag_close'] 			= 	'</a></li>';
+      $config['num_tag_open'] 			= 	'<li>';
+      $config['num_tag_close'] 			= 	'</li>';
+      $this->pagination->initialize($config);
+      $data 					              = 	$this->QueryModel->fetchDataWithLimitOffset('pdf_track', $config['per_page'], $offset, array('isDelete' => '0'));
+      if(!empty($data)) {
+        foreach($data as $single_sheet) {
+          $classArray = $this->QueryModel->getWhere(array('classId' => $single_sheet['class_id'], 'isDelete' => '0'), 'classes');
+          $sectionArray = $this->QueryModel->getWhere(array('sectionId' => $single_sheet['section_id'], 'isDelete' => '0'), 'sections');
+          $single_sheet['class_name'] = (!empty($classArray['class_name']) ? $classArray['class_name'] : "N/A");
+          $single_sheet['section_name'] = (!empty($sectionArray['section_name']) ? $sectionArray['section_name'] : "N/A");
+          unset($single_sheet['class_id']);
+          unset($single_sheet['section_id']);
+          unset($single_sheet['exam_id']);
+          $value['pdfList'][] = $single_sheet;
+        }
+      } else {
+        $value['pdfList']   = array(); 
+      }
+      $this->load->view('marks/pdflist.php', $value);
+    } catch(Exception $e) {
+
+    }
+  }
+
+
+  /**
    * @purpose: Download csv 
    */
   public function download($csv_name) {
@@ -265,12 +315,35 @@ class Marks extends CI_Controller{
         if(file_exists($file_name)) {
           $this->load->helper('download');
           force_download($file_name, NULL);
-          redirect('Marks/tabulationSheet', 'refresh');
+          redirect('Marks/tabulationSheetList', 'refresh');
         } else {
-          redirect('Marks/tabulationSheet', 'refresh');
+          redirect('Marks/tabulationSheetList', 'refresh');
         }
       } else {
-        redirect('Marks/tabulationSheet', 'refresh');
+        redirect('Marks/tabulationSheetList', 'refresh');
+      }
+    } catch(Exception $e){
+      echo $e->getMessage(); die;
+    }
+  }
+
+
+  /**
+   * @purpose: Download PDF
+   */
+  public function pdfDownload($pdf_name) {
+    try {
+      if(!empty($pdf_name)) {
+        $file_name = PDF_URL.urldecode($pdf_name);
+        if(file_exists($file_name)) {
+          $this->load->helper('download');
+          force_download($file_name, NULL);
+          redirect('Marks/pdfList', 'refresh');
+        } else {
+          redirect('Marks/pdfList', 'refresh');
+        }
+      } else {
+        redirect('Marks/pdfList', 'refresh');
       }
     } catch(Exception $e){
       echo $e->getMessage(); die;
@@ -289,6 +362,33 @@ class Marks extends CI_Controller{
           $deleteStatus = $this->QueryModel->deleteDataFromDataBase(array('sheetId' => $this->input->post('sheetId')), 'tabulation_sheet_track');
           if($deleteStatus === true) {
             unlink(TABAULATION_SHEET_URL.'/'.$getSheetDetails['csv_name']);
+            echo "1"; die;
+          } else {
+            echo "error"; die;
+          }
+        } else {
+          echo "error"; die;
+        }
+      } else {
+        echo "error"; die;
+      }
+    } catch(Throwable $e) {
+      echo "error"; die;
+    }
+  }
+
+
+  /**
+   * @purpose: delete pdf for regenrate
+   */
+  public function deletePDF() {
+    try {
+      if(!empty($this->input->post('pdfId'))) {
+        $getSheetDetails = $this->QueryModel->getWhere(array('id' => $this->input->post('pdfId')), 'pdf_track');
+        if(!empty($getSheetDetails)) {
+          $deleteStatus = $this->QueryModel->deleteDataFromDataBase(array('id' => $this->input->post('pdfId')), 'pdf_track');
+          if($deleteStatus === true) {
+            unlink(PDF_URL.'/'.$getSheetDetails['pdf_name']);
             echo "1"; die;
           } else {
             echo "error"; die;
@@ -332,32 +432,1582 @@ class Marks extends CI_Controller{
   public function sectionWiseResult() {
     try {
       if(!empty($this->input->post()) && $this->input->post('button') === 'Generate') {
-        $this->form_validation->set_rules('class_id', 'Class', 'required');
-        $this->form_validation->set_rules('section_id', 'Section', 'required');
-        if ($this->form_validation->run() === FALSE) {
-          $this->session->set_flashdata('error',validation_errors());
-          redirect('Marks/sectionWiseResult', 'refresh');
-        } else {
-          $insert_status = $this->QueryModel->insertDataIntoTable(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))), 'pdf_track');
-          if(!empty($insert_status)) {
-            $connection = new AMQPStreamConnection($this->config->item('rabbitmq')['host'], 5672, $this->config->item('rabbitmq')['user'], $this->config->item('rabbitmq')['pass']);
-            $channel = $connection->channel();
-            $channel->queue_declare('pdfResult', false, true, false, false);
-            $data = json_encode(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'pdf_track_id' => $insert_status));
-            $msg = new AMQPMessage(
-              $data,
-              array('delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT)
-            );
-            $channel->basic_publish($msg, '', 'pdfResult');
-            $channel->close();
-            $connection->close();
-            $this->session->set_flashdata('success', 'Result as an PDF will be avaliable after some times.');
-            redirect('Marks/sectionWiseResult', 'refresh'); 
-          } else {
-            $this->session->set_flashdata('error', 'Try again.');
-            redirect('Marks/sectionWiseResult', 'refresh');
-          }
-        }
+        // $this->form_validation->set_rules('class_id', 'Class', 'required');
+        // $this->form_validation->set_rules('section_id', 'Section', 'required');
+        // if ($this->form_validation->run() === FALSE) {
+        //   $this->session->set_flashdata('error',validation_errors());
+        //   redirect('Marks/sectionWiseResult', 'refresh');
+        // } else {
+        //   $checkAlreadyGenerateOrNot = $this->QueryModel->getWhere(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'isDelete' => '0'), 'pdf_track');
+        //   if(!empty($checkAlreadyGenerateOrNot)) {
+        //     if($checkAlreadyGenerateOrNot['isComplete'] === '1') {
+        //       $this->session->set_flashdata('success', 'Result as an PDF generated successfully. Download from PDF list.');
+        //       redirect('Marks/sectionWiseResult', 'refresh'); 
+        //     } else {
+        //       $this->session->set_flashdata('error', 'Result as an PDF on the way....');
+        //       redirect('Marks/sectionWiseResult', 'refresh');
+        //     }
+        //   } else {
+        //     $insert_status = $this->QueryModel->insertDataIntoTable(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id')))), 'pdf_track');
+        //     if(!empty($insert_status)) {
+        //       $connection = new AMQPStreamConnection($this->config->item('rabbitmq')['host'], 5672, $this->config->item('rabbitmq')['user'], $this->config->item('rabbitmq')['pass']);
+        //       $channel = $connection->channel();
+        //       $channel->queue_declare('pdfResult', false, true, false, false);
+        //       $data = json_encode(array('class_id' => trim(strip_tags($this->input->post('class_id'))), 'section_id' => trim(strip_tags($this->input->post('section_id'))), 'pdf_track_id' => $insert_status));
+        //       $msg = new AMQPMessage(
+        //         $data,
+        //         array('delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT)
+        //       );
+        //       $channel->basic_publish($msg, '', 'pdfResult');
+        //       $channel->close();
+        //       $connection->close();
+        //       $this->session->set_flashdata('success', 'Result as an PDF will be avaliable after some times.');
+        //       redirect('Marks/sectionWiseResult', 'refresh'); 
+        //     } else {
+        //       $this->session->set_flashdata('error', 'Try again.');
+        //       redirect('Marks/sectionWiseResult', 'refresh');
+        //     }
+        //   }
+        // }
+      $html = '
+      <!DOCTYPE html>
+          <html>
+              <head>
+              <style>
+                  *{ font-size: 14px; border-color: #ddd !important;}
+              </style>
+              </head>
+              <body >
+
+              <div style=" height:1000px; ">
+              <table style="max-width: 100%; font-size: 20px; font-family: Arial, Helvetica, sans-serif; width:1000px; margin: 0 auto;  ">
+              
+                  <tr>
+                      <td>
+                          <div style="margin-bottom:10px; width:685px; text-align:center;"> Academic session 2019-2020<br/> Mark sheet for Terminal Examination </div>
+                          <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Name:</strong> SUJAY GHOSH </div>
+                          <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Id No:</strong> STU10045278 </div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px; margin-bottom: 0px;"><strong>Class  :</strong> Class A </div>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 0px;"><strong>Stream:</strong> &nbsp; </div>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 0px;"><strong>Sec:</strong> A </div>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 0px;"><strong>Roll No.:</strong> 123456789 </div>
+                      </td>
+                  </tr> 
+                  <tr>
+                  <td >
+                  <div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0;">
+                      <table cellspacing="0" cellpadding="0" style="text-align:center;">
+                      <tr>
+                          <td style="width:175px;border:1px solid #dbdbdb; border-bottom:none; ">
+                          <p style="padding:22.5px 0; "> Major Subject(s)</p>
+                          <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+                              <tr>
+                              <td style="line-height:20px; border:1px solid #333; padding:5px 0;">ENGLISH - I</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px; border:1px solid #333;padding:5px 0;">ENGLISH - II</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px; border:1px solid #333;padding:5px 0;">BENGALI (2ND LANG)</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">HINDI(3RD LANG)</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">HISTORY</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">GEOGRAPHY</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">MATHS</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">PHYSICS</td>
+                              </tr>
+                        
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0; border-bottom:none;">Subject</td>
+                              </tr>
+
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0; border-bottom:none;">Subject</td>
+                              </tr>
+
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0; border-bottom:none;">Subject</td>
+                              </tr>
+
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0; border-bottom:none;">Subject</td>
+                              </tr>
+                          </table>
+                          </td>
+</div>
+
+</td>
+
+<td >
+<div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0; ">
+    <table cellspacing="0" cellpadding="0" style="text-align:center;">
+    <tr>
+        <td style="width:175px;border:1px solid #dbdbdb; ">
+        <div > 
+        
+        <p style="  ">  Terminal </p>
+
+        <p style=" border-bottom:1px solid #dbdbdb; "> &nbsp; </p>
+
+      
+        </div>
+        <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+          <tr>
+           
+           
+           <td style="font-size:10px;">
+           <span style=" display:inline-block; padding:2px; margin-top:-10px ; text-align:center; width:99%;">     Total  </span>
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+       
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+
+           <td style="font-size:10px; ">
+      <span style="border-left:1px solid #dbdbdb; display:inline-block; padding:2px; margin-top:-10px; text-align:center; width:100%;">     HGST </span>
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+       
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+           </tr>
+        </table>
+        </td>
+</div>
+
+</td>
+
+<td >
+<div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0; ">
+    <table cellspacing="0" cellpadding="0" style="text-align:center;">
+    <tr>
+        <td style="width:175px;border:1px solid #dbdbdb; ">
+        <div > 
+        
+        <p style="  ">  Terminal </p>
+
+        <p style=" border-bottom:1px solid #dbdbdb; "> &nbsp; </p>
+
+       
+        </div>
+        <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+          <tr>
+           
+           <td style="font-size:10px;">
+           <span style="border-left:1px solid #dbdbdb; display:inline-block; padding:2px; margin-top:-10px; text-align:center; width:100%;">     Total 
+</span>
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+       
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+
+           <td style="font-size:10px;">
+           <span style="border-left:1px solid #dbdbdb; display:inline-block; padding:2px; margin-top:-10px; text-align:center; width:100%;">   HGST
+</span>
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+          
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+           </tr>
+        </table>
+        </td>
+</div>
+
+</td>
+
+<td >
+<div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0; ">
+    <table cellspacing="0" cellpadding="0" style="text-align:center;">
+    <tr>
+        <td style="width:175px;border:1px solid #dbdbdb; ">
+        <div > 
+        
+        <p style="  ">  Terminal </p>
+
+        <p style=" border-bottom:1px solid #dbdbdb; "> &nbsp; </p>
+        </div>
+        <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+          <tr>
+          
+           <td style="font-size:10px;">
+           <span style="border-left:1px solid #dbdbdb; display:inline-block; padding:2px; margin-top:-10px; text-align:center; width:100%;">      Total  </span>
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+        
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+
+           <td style="font-size:10px;">
+           <span style="border-left:1px solid #dbdbdb; display:inline-block; padding:2px; margin-top:-10px; text-align:center; width:100%;">     HGST </span>
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+      
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; ">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+           </tr>
+        </table>
+        </td>
+</div>
+
+</td>
+
+</tr>
+
+</table>
+
+</tr>
+
+</table>
+
+</tr>
+
+</table>
+
+</tr>
+
+</table>
+</tr>
+
+</table>
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:5px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+Grand Total
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px; text-align: center; ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; text-align: center; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px; text-align: center; text-align: center; ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+Percentage 
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+S.U.P.W.
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+C.C.A
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+ATTENDANCE
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+RANK
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+NUMBER IN CLASS
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif; line-height:30px; margin-left:5px; ">
+<p style="padding: 0 5px; margin:0;">PERSONALITY POINTS: A pleasure to have in class	</p>
+<p style="display:block; border-right:1px solid #dbdbdb; width:100%; margin:5px 0 0 0; padding-left:5px;  ">
+<strong>Class Teacher Remark:</strong> For subjects where a grade is awarded, grading will be based on the following Scale and Standard: A :
+Very Good B : Good C : Satisfactory D : Needs improvment E : poor F : Fail
+</p></div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif; line-height:30px; margin-left:5px; ">
+<p style="display:block; border-right:1px solid #dbdbdb; width:100%; margin:5px 0 0 0; padding-left:5px;  ">
+<strong>Note:</strong> For subjects where a grade is awarded, grading will be based on the following Scale and Standard: A :
+Very Good B : Good C : Satisfactory D : Needs improvment E : poor F : Fail
+</p>
+
+
+</div>
+
+  </div>
+
+</body>
+</html>
+
+      ';
+
+
+
+      $html .= '
+      <!DOCTYPE html>
+          <html>
+              <head>
+              <style>
+                  *{ font-size: 14px; border-color: #ddd !important;}
+              </style>
+              </head>
+              <body style="border-bottom:1px solid #ddd; height:880px;">
+              
+              <table style="max-width: 100%; font-size: 20px; font-family: Arial, Helvetica, sans-serif; width:1000px; margin: 0 auto;  ">
+                  <tr>
+                      <td style="text-align: center; ">
+                      
+                      </td>
+                  </tr>
+                  <tr>
+                      <td>
+                          <div style="margin-bottom:10px; width:685px; text-align:center;"> Academic session 2019-2020<br/> Mark sheet for Terminal Examination </div>
+                          <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Name:</strong> SUJAY GHOSH </div>
+                          <div style="display:inline-block; text-align: left; width: 50%; font-size: 14px;"><strong>Id No:</strong> STU10045278 </div>
+                      </td>
+                  </tr>
+                  <tr>
+                      <td>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px; margin-bottom: 10px;"><strong>Class  :</strong> Class A </div>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Stream:</strong> &nbsp; </div>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Sec:</strong> A </div>
+                          <div style="display:inline-block; text-align: left; width: 25%; font-size: 14px;margin-bottom: 10px;"><strong>Roll No.:</strong> 123456789 </div>
+                      </td>
+                  </tr> 
+                  <tr>
+                  <td >
+                  <div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0;">
+                      <table cellspacing="0" cellpadding="0" style="text-align:center;">
+                      <tr>
+                          <td style="width:175px;border:1px solid #dbdbdb; border-bottom:none; ">
+                          <p style="padding:22.5px 0; "> Major Subject(s)</p>
+                          <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+                              <tr>
+                              <td style="line-height:20px; border:1px solid #333; padding:5px 0;">ENGLISH - I</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px; border:1px solid #333;padding:5px 0;">ENGLISH - II</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px; border:1px solid #333;padding:5px 0;">BENGALI (2ND LANG)</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">HINDI(3RD LANG)</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">HISTORY</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">GEOGRAPHY</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">MATHS</td>
+                              </tr>
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0;">PHYSICS</td>
+                              </tr>
+                        
+                              <tr>
+                              <td style="line-height:20px;border:1px solid #333;padding:5px 0; border-bottom:none;">Subject</td>
+                              </tr>
+                          </table>
+                          </td>
+</div>
+
+</td>
+
+<td >
+<div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0; ">
+    <table cellspacing="0" cellpadding="0" style="text-align:center;">
+    <tr>
+        <td style="width:175px;border:1px solid #dbdbdb; ">
+        <div > 
+        
+        <p style=" border-bottom:1px solid #dbdbdb; ">  Terminal </p>
+
+        <p style=" border-bottom:1px solid #dbdbdb; "> Marks OBTD </p>
+        </div>
+        <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+          <tr>
+           
+           
+           <td style="font-size:10px;">
+           Total 
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+       
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+
+           <td style="font-size:10px;">
+           HGST
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+       
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+           </tr>
+        </table>
+        </td>
+</div>
+
+</td>
+
+<td >
+<div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0; ">
+    <table cellspacing="0" cellpadding="0" style="text-align:center;">
+    <tr>
+        <td style="width:175px;border:1px solid #dbdbdb; ">
+        <div > 
+        
+        <p style=" border-bottom:1px solid #dbdbdb; ">  Terminal </p>
+
+        <p style=" border-bottom:1px solid #dbdbdb; "> Marks OBTD </p>
+        </div>
+        <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+          <tr>
+           
+           <td style="font-size:10px;">
+           Total 
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+       
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+
+           <td style="font-size:10px;">
+           HGST
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+          
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+           </tr>
+        </table>
+        </td>
+</div>
+
+</td>
+
+<td >
+<div style=" border:1px solid #333; width:175px;display:inline-block; margin:0; padding:0; ">
+    <table cellspacing="0" cellpadding="0" style="text-align:center;">
+    <tr>
+        <td style="width:175px;border:1px solid #dbdbdb; ">
+        <div > 
+        
+        <p style=" border-bottom:1px solid #dbdbdb; ">  Terminal </p>
+
+        <p style=" border-bottom:1px solid #dbdbdb; "> Marks OBTD </p>
+        </div>
+        <table  cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%">
+          <tr>
+          
+           <td style="font-size:10px;">
+           Total 
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+        
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+
+           <td style="font-size:10px;">
+           HGST
+
+           
+           <table cellspacing="0" cellpadding="0" style="text-align:center; font-size:8px; width:100%" >
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+      
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0;">
+           100
+           </td>
+           </tr>
+
+           <tr>
+           <td  style="line-height:20px; border:1px solid #333; padding:5px 0; border-bottom:none;">
+           100
+           </td>
+           </tr>
+           </table>
+           </td>
+           </tr>
+        </table>
+        </td>
+</div>
+
+</td>
+
+</tr>
+
+</table>
+
+</tr>
+
+</table>
+
+</tr>
+
+</table>
+
+</tr>
+
+</table>
+</tr>
+
+</table>
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:5px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+Grand Total
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+Percentage 
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+S.U.P.W.
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+C.C.A
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+ATTENDANCE
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+RANK
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif;  margin-left:5px; height:30px; line-height:25px; ">
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:170px; margin:3px 0 0 0; padding-left:5px; height:30px;  ">
+NUMBER IN CLASS
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+<span style="display:inline-block; border-right:1px solid #dbdbdb; width:165px; margin:3px 0 0 0; padding-left:5px; height:30px; ">
+100
+</span>
+
+<span style="display:inline-block;  width:165px; margin:3px 0 0 0; padding-left:5px;height:30px;  ">
+100
+</span>
+
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif; line-height:30px; margin-left:5px; ">
+<p style="display:inline-block; border-right:1px solid #dbdbdb; width:175px; margin:5px 0 0 0; padding-left:5px;  ">
+
+PERSONALITY POINTS:
+</p>
+
+A pleasure to have in class					
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif; line-height:30px; margin-left:5px; ">
+<p style="display:inline-block; border-right:1px solid #dbdbdb; width:175px; margin:5px 0 0 0; padding-left:5px;  ">
+
+Class Teacher Remark
+</p>
+
+100
+</div>
+
+
+<div style=" width:700px; border:1px solid #dbdbdb; display:block; float-left; margin-top:0px; font-family: Arial, Helvetica, sans-serif; line-height:30px; margin-left:5px; ">
+<p style="display:block; border-right:1px solid #dbdbdb; width:100%; margin:5px 0 0 0; padding-left:5px;  ">
+<strong>Note:</strong> For subjects where a grade is awarded, grading will be based on the following Scale and Standard: A :
+Very Good B : Good C : Satisfactory D : Needs improvment E : poor F : Fail
+</p>
+
+
+</div>
+
+
+
+</body>
+</html>
+
+      ';
+
+      // echo $html; die;
+      $dompdf = new Dompdf();
+      $dompdf->set_option('isHtml5ParserEnabled', true);
+      $dompdf->loadHtml($html);
+      $dompdf->setPaper('A4', 'portrait');
+      $dompdf->render();
+      $dompdf->stream();
       } else {
         $data['classes'] 			      = 	$this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'classes');
         $this->load->view('marks/sectionwiseresult', $data);
@@ -455,10 +2105,57 @@ class Marks extends CI_Controller{
    * @purpose: serach among student list marks
    */
 
-  public function search(){
+  public function search($offset = 0){
     try {
-      echo "<pre>"; print_r($_GET); die;
-    } catch(Thorwable $e) {
+      if(!empty($_GET['table_search']) && $_GET['search'] === 'search') {
+        if($offset > 1) {
+            $offset             =   $offset - 1;
+            $offset             =   (int)$offset * 10;
+        }else {
+            $offset             =   (int)$offset;
+        }
+        //$studentData = $this->QueryModel->search($_GET['table_search'],10,$offset);
+        //$resultCount = $this->QueryModel->searchResultCount($_GET['table_search']);
+        $config['base_url']         =   base_url('Marks/search');
+        $config['total_rows']       =   $this->QueryModel->searchResultCount($_GET['table_search'])['count']; 
+        $config['per_page']         =   10;
+        $config['num_links']        =   5;
+        $config['use_page_numbers'] =   TRUE;
+        $config['full_tag_open']    =   '<ul class="pagination">';
+        $config['full_tag_close']   =   '</ul>';
+        $config['prev_link']        =   '&laquo;';
+        $config['prev_tag_open']    =   '<li>';
+        $config['prev_tag_close']   =   '</li>';
+        $config['next_tag_open']    =   '<li>';
+        $config['next_tag_close']   =   '</li>';
+        $config['cur_tag_open']     =   '<li class="active"><a href="#">';
+        $config['cur_tag_close']    =   '</a></li>';
+        $config['num_tag_open']     =   '<li>';
+        $config['num_tag_close']    =   '</li>';
+        $config['reuse_query_string'] = true;
+        $this->pagination->initialize($config);
+        $studentData = $this->QueryModel->search($_GET['table_search'],$config['per_page'],$offset);
+        if(!empty($studentData)) {
+          foreach($studentData as $single_student){
+              $single_student['class_name']               =   $this->QueryModel->getWhere(array('classId' => $single_student['class_id'], 'isDelete' => '0'), 'classes')['class_name'];
+              $single_student['section_name']             =   $this->QueryModel->getWhere(array('sectionId' => $single_student['section_id'], 'isDelete' => '0'), 'sections')['section_name'];
+              unset($single_student['class_id']);
+              unset($single_student['section_id']);
+              $listArray[]                                =   $single_student;
+          }
+      }else {
+          $listArray                                      =   array();
+      }
+        $details['studentmarks']                =   $listArray;
+        $this->load->view('marks/liststudentmarks', $details);
+        //echo "<pre>"; print_r($studentData); die;
+      }else{
+        redirect('Marks/listStudentMarks', 'refresh');
+      }
+      //echo "<pre>"; print_r($_GET); die;
+      //$this->load->view('marks/liststudentmarks');
+      
+    }catch(Thorwable $e) {
       echo $e->getMessage(); die;
     }
   }
@@ -529,8 +2226,86 @@ class Marks extends CI_Controller{
    */
   public function marksEntry() {
     try {
-      if(!empty($this->input->post())) {
-        echo "<pre>"; print_r($this->input->post()); die;
+      if(!empty($this->input->post()) && @$this->input->post('create') === 'Create') {
+        $list = array();
+        $this->form_validation->set_rules('exam_id', 'Exam', 'required');
+        $this->form_validation->set_rules('class_id', 'Class', 'required');
+        $this->form_validation->set_rules('section_id', 'Section', 'required');
+        $this->form_validation->set_rules('student_id', 'Student', 'required');
+        if ($this->form_validation->run() === FALSE) {
+          $this->session->set_flashdata('error',validation_errors());
+          redirect('Marks/marksEntry', 'refresh');
+        } else {
+          $student_name = $this->QueryModel->getWhere(array('studentId' => $this->input->post('student_id'), 'isDelete' => '0'), 'students');
+          $exam_name = $this->QueryModel->getWhere(array('examId' => $this->input->post('exam_id'), 'isDelete' => '0'), 'exams');
+          if(!empty($student_name)) {
+            $conditionArray = array(
+              'class_id' => $this->input->post('class_id'),
+              'section_id' => $this->input->post('section_id'),
+              'isDelete' => '0'
+            );
+            $getAssignSubjectList = $this->QueryModel->getMultipleRow($conditionArray, 'assign_subject');
+            foreach($getAssignSubjectList as $key => $value) {
+              $getSubjectName = $this->QueryModel->getWhere(array('subjectId' => $value['subject_id'], 'isDelete' => '0'), 'subjects');
+              if(!empty($getSubjectName)) {
+                $value['subject_name'] = (!empty($getSubjectName['subject_name']) ? $getSubjectName['subject_name'] : "N/A");
+                $value['student_name'] = (!empty($student_name['student_name']) ? $student_name['student_name'] : "N/A");
+                $value['student_id'] = (!empty($student_name['studentId']) ? $student_name['studentId'] : "N/A");
+                $value['exam_id'] = (!empty($exam_name['examId']) ? $exam_name['examId'] : "N/A");
+                $value['exam_name'] = (!empty($exam_name['exam_name']) ? $exam_name['exam_name'] : "N/A");
+                $value['class_name'] = $this->QueryModel->getWhere(array('classId' => $value['class_id'], 'isDelete' => '0'), 'classes')['class_name'];
+                $value['section_name'] = $this->QueryModel->getWhere(array('sectionId' => $value['section_id'], 'isDelete' => '0'), 'sections')['section_name'];
+              } else {
+                continue;
+              }
+              $list[] = $value;
+            }
+            $data['list'] = $list;
+            $this->load->view('marks/singlestudentmarksentry', $data);
+          } else {
+            $this->session->set_flashdata('error','Student not found.');
+            redirect('Marks/marksEntry', 'refresh');
+          }
+        }
+      } elseif(!empty($this->input->post()) && @$this->input->post('create') === 'Entry') {
+        if(!empty($this->input->post('studentId')) && !empty($this->input->post('examId')) && !empty($this->input->post('total_marks'))) {
+          $getStudentDetails = $this->QueryModel->getWhere(array('studentId' => $this->input->post('studentId'), 'isDelete' => '0'), 'students');
+          if(!empty($getStudentDetails)) {
+            for($i = 0; $i < count($this->input->post('subjectId')); $i++) {
+              //TODO: Need indexing on table
+              $condition_array = array(
+                'student_id' => $this->input->post('studentId'),
+                'exam_id' => $this->input->post('examId'),
+                'subject_id' => $this->input->post('subjectId')[$i],
+                'isDelete' => '0'
+              );
+              $checkData = $this->QueryModel->getWhere($condition_array, 'student_marks');
+              if(empty($checkData)) {
+                $insert_array = array(
+                  'exam_id' => (!empty(trim(strip_tags($this->input->post('examId')))) ? trim(strip_tags($this->input->post('examId'))) : "N/A") ,
+                  'section_id' => (!empty(trim(strip_tags($getStudentDetails['section_id']))) ? trim(strip_tags($getStudentDetails['section_id']))  :"N/A") ,
+                  'class_id' => (!empty(trim(strip_tags($getStudentDetails['class_id']))) ? trim(strip_tags($getStudentDetails['class_id'])) : "N/A"),
+                  'subject_id' => $this->input->post('subjectId')[$i],
+                  'total_marks' => (!empty(trim(strip_tags($this->input->post('total_marks')))) ? trim(strip_tags($this->input->post('total_marks'))) : "N/A"),
+                  'highestMarks' => (!empty(trim(strip_tags($this->input->post('highest_marks')))) ? trim(strip_tags($this->input->post('highest_marks'))) : "N/A"),
+                  'student_id' => (!empty(trim(strip_tags($this->input->post('studentId')))) ? trim(strip_tags($this->input->post('studentId'))) : "0"),
+                  'otained_marks' => (!empty(trim(strip_tags($this->input->post('marks')[$i]))) ? trim(strip_tags($this->input->post('marks')[$i])) : "0")
+                );
+                $this->QueryModel->insertDataIntoTable($insert_array, 'student_marks');
+              } else {
+                continue;
+              }
+            }
+            $this->session->set_flashdata('success','Marks entry successfully done.');
+            redirect('Marks/marksEntry', 'refresh');
+          } else {
+            $this->session->set_flashdata('error','Student not found.');
+            redirect('Marks/marksEntry', 'refresh');
+          }
+        } else {
+          redirect('Marks/marksEntry', 'refresh');
+        }
+        
       } else {
         $data['exams']              =   $this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'exams');
         $data['classes'] 			      = 	$this->QueryModel->getMultipleRow(array('isDelete' => '0'), 'classes');
@@ -584,11 +2359,11 @@ class Marks extends CI_Controller{
         } else {
           $finalStudentArray  =  array();
           $conditionArray = array(
-                    'section_id' => $this->input->post('section_id'),
-                    'subject_id' => $this->input->post('subject_id'),
-                    'exam_id' => $this->input->post('exam_id'),  
-                    'isDelete' => '0'              
-                );
+            'section_id' => $this->input->post('section_id'),
+            'subject_id' => $this->input->post('subject_id'),
+            'exam_id' => $this->input->post('exam_id'),  
+            'isDelete' => '0'              
+          );
           $studentList    =   $this->QueryModel->getMultipleRow($conditionArray, 'student_marks');
           foreach($studentList as $key=>$Student){
             $conditionArray =  array(
@@ -638,108 +2413,129 @@ class Marks extends CI_Controller{
   public function uploadCsv(){
     try{
       if(!empty($this->input->post()) && $this->input->post('create') === 'Upload'){
-        //echo "<pre>";print_r($_FILES);die;
         if(!empty($_FILES)){
           if($_FILES['csv']['type'] === 'text/csv'){
             $file = fopen($_FILES["csv"]["tmp_name"],"r");
             $finalArr = array();
             while($data = fgetcsv($file)){
-              //echo "<pre>";print_r($data[6]);die;
               if(empty($data[0]) || is_null($data[0]) || trim($data[0]) === '') {
-                  $this->session->set_flashdata('error','Exam name can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+                $this->session->set_flashdata('error','Exam name can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
               if(empty($data[1]) || is_null($data[1]) || trim($data[1]) === '') {
-                  $this->session->set_flashdata('error','Class Name can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+                $this->session->set_flashdata('error','Class Name can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
               if(empty($data[2]) || is_null($data[2]) || trim($data[2]) === '') {
-                  $this->session->set_flashdata('error','Section Name can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+                $this->session->set_flashdata('error','Section Name can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
               if(empty($data[4]) || is_null($data[4]) || trim($data[4]) === '') {
-                  $this->session->set_flashdata('error','Student Name can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+                $this->session->set_flashdata('error','Student Name can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
               if(empty($data[6]) || is_null($data[6]) || trim($data[6]) === '') {
-                  $this->session->set_flashdata('error','Subject Name can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+                $this->session->set_flashdata('error','Subject Name can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
-              if(empty($data[7]) || is_null($data[7]) || trim($data[7]) === '') {
-                  $this->session->set_flashdata('error','Total marks can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+              if(is_null($data[7]) || trim($data[7]) === '') {
+                $this->session->set_flashdata('error','Total marks can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
               if(is_null($data[8]) || trim($data[8]) === '') {
-                  $this->session->set_flashdata('error','obtained marks can not be empty.Try again!');
-                  redirect('Marks/uploadCsv', 'refresh');
+                $this->session->set_flashdata('error','obtained marks can not be empty.Try again!');
+                redirect('Marks/uploadCsv', 'refresh');
               }
-              $examConditionArray      =   array('exam_name' => $data[0], 'isDelete' => '0');
-              $exam                    =   $this->QueryModel->getWhere($examConditionArray, 'exams');
-              //echo "<pre>";print_r($exam);die;
-              if(!empty($exam)){
-                $classConditionArray   =   array('class_name' => $data[1], 'isDelete' => '0');
-                $class                 =   $this->QueryModel->getWhere($classConditionArray, 'classes');
-                //echo "<pre>";print_r($class);
-                if(!empty($class)){
-                  $sectionConditionArray   =   array('class_id' => $class['classId'],'section_name' => $data[2], 'isDelete' => '0');
-                  $section                 =   $this->QueryModel->getWhere($sectionConditionArray, 'sections');
-                  //echo "<pre>";print_r($section);die;
-                  if(!empty($section)){
-                    $studentName = $data[4];
-                    $name = explode(" ",$studentName);
-                    $count= count($name);
-                     //echo $count;die;
-                    if ($count === 2){
-                      $stud = $name[1]." ".$name[0];
-                    }else{
-                      $stud = $name[2]." ".$name[0]." ".$name[1];
-                    }
-                    $studentConditionArray   =   array('class_id' => $class['classId'],'section_id' => $section['sectionId'], 'student_name' =>$stud, 'isDelete' => '0');
-                    $student                 =   $this->QueryModel->getWhere($studentConditionArray, 'students');
-                    //echo "<pre>";print_r($student);die;
-                    if(!empty($student)){
-                      $subjectConditionArray   =   array('subject_name' => $data[6], 'isDelete' => '0');
-                      $subject                   =   $this->QueryModel->getWhere($subjectConditionArray, 'subjects');
-                      if(!empty($subject)){
-                        $ConditionArray   =   array('subject_id' => $subject['subjectId'],'student_id'=> $student['studentId'], 'section_id' => $section['sectionId'], 'class_id' => $class['classId'], 'exam_id' => $exam['examId'],'isDelete' => '0');
-                        $studentMarks     =   $this->QueryModel->getWhere($ConditionArray, 'student_marks');
-                        //echo "<pre>";print_r($studentMarks);die;
-                        if(empty($studentMarks)){
-                          $studentArray = array(
+              if($data[6] === "DRAWING") {
+                continue;
+              } else {
+                $examConditionArray      =   array('exam_name' => $data[0], 'isDelete' => '0');
+                $exam                    =   $this->QueryModel->getWhere($examConditionArray, 'exams');
+                if(!empty($exam)){
+                  $classConditionArray   =   array('class_name' => $data[1], 'isDelete' => '0');
+                  $class                 =   $this->QueryModel->getWhere($classConditionArray, 'classes');
+                  if(!empty($class)){
+                    $sectionConditionArray   =   array('class_id' => $class['classId'],'section_name' => $data[2], 'isDelete' => '0');
+                    $section                 =   $this->QueryModel->getWhere($sectionConditionArray, 'sections');
+                    if(!empty($section)){
+                      $studentName = $data[4];
+                      $name = explode(" ",$studentName);
+                      $count= count($name);
+                      if ($count === 2){
+                        $stud = $name[1]." ".$name[0];
+                      }elseif($count === 3){
+                        $stud = $name[2]." ".$name[0]." ".$name[1];
+                      } else {
+                        $stud = $name[3]." ".$name[0]." ".$name[1]." ".$name[2];
+                      }
+                      $studentConditionArray   =   array('class_id' => $class['classId'],'section_id' => $section['sectionId'], 'student_name' =>$stud, 'isDelete' => '0');
+                      $student                 =   $this->QueryModel->getWhere($studentConditionArray, 'students');
+                      if(!empty($student)){
+                        if($data[6] === "BENGALI" || $data[6] === "BENGALI (2ND LANG)" || $data['6'] === 'HINDI' || $data['6'] === 'HINDI (2ND LANG)') {
+                          if($data[7] == 0 || $data['8'] == 0){
+                            continue;
+                          } else {
+                            $data[6] = '2nd Language Bengali / Hindi';
+                          }
+                        } elseif($data[6] === "S.S.T") {
+                          $data[6] = 'Social Studies';
+                        } elseif($data[6] === "COMPUTER") {
+                          $data[6] = 'Computer Application';
+                        } elseif($data[6] === 'MATHS') {
+                          $data[6] = 'Mathematics';
+                        } elseif($data[6] === 'HINDI (3RD LANG)' || $data[6] === 'BENGALI (3RD LANG)') {
+                          if($data[7] == 0 || $data['8'] == 0){
+                            continue;
+                          } else {
+                            $data[6] = '3rd Language Bengali / Hindi';
+                          }
+                        } elseif($data[6] === 'HISTORY') {
+                          $data[6] = 'History / Civic';
+                        }
+                        $subjectConditionArray   =   array('subject_name' => $data[6], 'isDelete' => '0');
+                        $subject                   =   $this->QueryModel->getWhere($subjectConditionArray, 'subjects');
+                        if(!empty($subject)){
+                          $ConditionArray   =   array('subject_id' => $subject['subjectId'],'student_id'=> $student['studentId'], 'section_id' => $section['sectionId'], 'class_id' => $class['classId'], 'exam_id' => $exam['examId'],'isDelete' => '0');
+                          $studentMarks     =   $this->QueryModel->getWhere($ConditionArray, 'student_marks');
+                          if(empty($studentMarks)){
+                            $studentArray = array(
                               'subject_id' =>  $subject['subjectId'],
                               'student_id' => $student['studentId'], 
                               'section_id' => $section['sectionId'], 
                               'class_id'   => $class['classId'],
                               'exam_id'    => $exam['examId'],
                               'highestMarks' => 0,
-                              'total_marks'  => $data[7],
-                              'otained_marks' => $data[8],
+                              'total_marks'  => trim(strip_tags($data[7])),
+                              'otained_marks' => trim(strip_tags($data[8])),
                               'isDelete'   => '0'
-                          );
-                          $marksEntry = $this->QueryModel->insertDataIntoTable($studentArray, 'student_marks');
+                            );
+                            $marksEntry = $this->QueryModel->insertDataIntoTable($studentArray, 'student_marks');
+                          }else{
+                            continue;
+                          }
                         }else{
-                          continue;
+                          echo $data[6]; die;
+                          $this->session->set_flashdata('error','Subject does not exist!');
+                          redirect('Marks/uploadCsv', 'refresh');
                         }
                       }else{
-                        $this->session->set_flashdata('error','Subject does not exist!');
+                        echo $stud; die;
+                        $this->session->set_flashdata('error','Student name does not exist!');
                         redirect('Marks/uploadCsv', 'refresh');
                       }
                     }else{
-                      $this->session->set_flashdata('error','Student name does not exist!');
+                      $this->session->set_flashdata('error','Section does not exist!');
                       redirect('Marks/uploadCsv', 'refresh');
                     }
+
                   }else{
-                    $this->session->set_flashdata('error','Section does not exist!');
+                    $this->session->set_flashdata('error','Class does not exist!');
                     redirect('Marks/uploadCsv', 'refresh');
                   }
-
                 }else{
-                  $this->session->set_flashdata('error','Class does not exist!');
+                  $this->session->set_flashdata('error','Exam is not created!');
                   redirect('Marks/uploadCsv', 'refresh');
                 }
-              }else{
-                $this->session->set_flashdata('error','Exam is not created!');
-                redirect('Marks/uploadCsv', 'refresh');
               } 
             }
             $this->session->set_flashdata('success', 'CSV uploaded successfully');
@@ -758,6 +2554,60 @@ class Marks extends CI_Controller{
     }catch(Thorwable $e){
       echo $e->getMessage(); die;
     }
+  }
+
+
+  /**
+   * @purpose: get exam number by exam_id and class_id
+   */
+  public function getSheetData($sheetId = NULL) {
+    try {
+      $assign_subject_array = array();
+      $getStudentMarks = array();
+      if(!is_null($sheetId) || !empty($sheetId) || trim($sheetId) !== "") {
+        $decode_sheet_id = base64_decode($sheetId); 
+        if(!empty($decode_sheet_id)) {
+          $getSheetDetails = $this->QueryModel->getWhere(array('sheetId' => $decode_sheet_id), 'tabulation_sheet_track');
+          if(!empty($getSheetDetails)) {
+            $getStudentList = $this->QueryModel->getMultipleRow(array('class_id' => $getSheetDetails['class_id'], 'section_id' => $getSheetDetails['section_id'], 'isDelete' => '0'), 'students');
+            // $getAssignSubjectList = $this->QueryModel->getMultipleRow(array('section_id' => $getSheetDetails['section_id'], 'class_id' => $getSheetDetails['class_id'], 'isDelete' => '0'), 'assign_subject');
+            // if(!empty($getAssignSubjectList)) {
+            //   foreach($getAssignSubjectList as $subject) {
+            //     $getSubjectName = $this->QueryModel->getwhere(array('subjectId' => $subject['subject_id'], 'isDelete' => '0'), 'subjects');
+            //     if(!empty($getSubjectName)) {
+            //       $subject['subject_name'] = (!empty($getSubjectName['subject_name']) ? $getSubjectName['subject_name'] : "N/A");
+            //       $assign_subject_array[] = $subject;
+            //     } else {
+            //       continue;
+            //     }
+            //   }
+            // } else {
+
+            // }
+            if(!empty($getStudentList)) {
+              foreach($getStudentList as $single_student) {
+                $student_marks = $this->QueryModel->getStudentmarks(array('exam_id' => $getSheetDetails['exam_id'],  'student_id' => $single_student['studentId']), 'student_marks');
+                $getStudentMarks[] = $student_marks;
+              }
+              $data['student_result'] = $getStudentMarks;
+              $data['assign_subject'] = $assign_subject_array;
+              
+              $this->load->view('marks/viewstudentresult.php', $data);
+            } else {
+              redirect('Marks/tabulationSheetList', 'refresh');
+            }
+          } else {
+            redirect('Marks/tabulationSheetList', 'refresh');
+          }
+        } else {
+          redirect('Marks/tabulationSheetList', 'refresh'); 
+        }
+      } else {
+        redirect('Marks/tabulationSheetList', 'refresh'); 
+      }
+    } catch(Thorwable $e) {
+      echo $e->getMessage(); die;
+    } 
   }
 
 }

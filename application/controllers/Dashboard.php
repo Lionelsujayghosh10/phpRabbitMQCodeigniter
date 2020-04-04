@@ -8,9 +8,9 @@ class Dashboard extends CI_Controller {
 
     public function __construct() {
         parent:: __construct();
-        if(empty($this->session->userdata('email'))) {
-            redirect('Login', 'refresh');
-        }
+        // if(empty($this->session->userdata('email'))) {
+        //     redirect('Login', 'refresh');
+        // }
         
         $this->load->library('form_validation');
         $this->load->model('QueryModel');
@@ -23,7 +23,10 @@ class Dashboard extends CI_Controller {
      */
     public function index() {
         try {
-            $this->load->view('dashboard.php');
+            $count['classCount']       =   $this->QueryModel->countIds('classes');
+            $count['studentCount']     =   $this->QueryModel->countIds('students');
+            $count['subjectCount']     =   $this->QueryModel->countIds('subjects'); 
+            $this->load->view('dashboard.php', $count);
         } catch(Exception $e) {
             echo $e->getMessage(); die;
         }

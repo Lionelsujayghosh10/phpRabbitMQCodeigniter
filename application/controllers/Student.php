@@ -9,9 +9,7 @@ class Student extends CI_Controller {
 
     public function __construct() {
         parent:: __construct();
-        if(empty($this->session->userdata('email'))) {
-            redirect('Login', 'refresh');
-        }
+
         
         $this->load->library('form_validation');
         $this->load->model('QueryModel');
@@ -242,6 +240,39 @@ class Student extends CI_Controller {
         } catch(Thorwable $e) {
             echo $e->getMessage(); die;
         }
+    }
+
+
+
+
+    public function EditStudent($studentId = 0){
+        if(!empty($studentId)){
+            
+            if(!empty($this->input->post("update")) && @$this->input->post("update") === "Update"){
+                $studentArray['student_name'] = trim($this->input->post("student_name"));
+                $studentArray['student_rollNumber'] = trim($this->input->post("student_rollNumber"));
+                $studentConditionArray = array(
+                        "studentId" => $studentId,
+                        "isDelete"  => "0"
+                );
+
+                $result = $this->QueryModel->updateData($studentArray, $studentConditionArray, 'students');
+                redirect('Student/listStudent', 'refresh');
+            }else{
+                $studentId = base64_decode($studentId);
+                $studentConditionArray = array(
+                        'studentId'         =>  $studentId,
+                        'isDelete'          =>  "0"
+                    );
+
+                $data['studentDetails'] = $this->QueryModel->getWhere($studentConditionArray, 'students');
+                $this->load->view("student/editstudent", $data);
+            }
+        }else{
+            redirect('Student/listStudent', 'refresh');
+        }
+       
+
     }
 
 

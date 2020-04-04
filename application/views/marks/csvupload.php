@@ -54,7 +54,7 @@ $this->load->view('includes/sidebar.php'); ?>
                 <?php } ?>
                   <div class="col-md-4">
                     <label for="exampleInputEmail1">CSV</label>
-                    <input type="file" id="csv_id" name="csv">
+                    <input type="file" id="csv_id" name="csv" required="required">
 
                   </div>
                </div>

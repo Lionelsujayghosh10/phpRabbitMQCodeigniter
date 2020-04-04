@@ -26,7 +26,7 @@
             </a>
             <ul class="nav nav-treeview">
               <li class="nav-item">
-                <a href="pages/layout/top-nav.html" class="nav-link">
+                <a href="<?php echo base_url('ClassSection/createClass'); ?>" class="nav-link">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Create Class</p>
                 </a>
@@ -170,7 +170,7 @@
               <p>
               Result
                 <i class="fas fa-angle-left right"></i>
-                <span class="badge badge-info right">4</span>
+                <span class="badge badge-info right">9</span>
               </p>
             </a>
             <ul class="nav nav-treeview ">
@@ -180,12 +180,12 @@
                   <p>Marks Entery</p>
                 </a>
               </li>
-              <!-- <li class="nav-item">
-                <a href="<?php //echo base_url('Marks/marksEntry'); ?>" class="nav-link <?php //if($this->uri->segment(2) === 'marksEntry') { echo "active"; } ?>">
+              <li class="nav-item">
+                <a href="<?php echo base_url('Marks/marksEntry'); ?>" class="nav-link <?php //if($this->uri->segment(2) === 'marksEntry') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Single student Marks Entry</p>
                 </a>
-              </li> -->
+              </li>
               <!-- <li class="nav-item">
                 <a href="<?php //echo base_url('Marks/csvUpload'); ?>" class="nav-link <?php //if($this->uri->segment(2) === 'csvUpload') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
@@ -228,6 +228,12 @@
                 <a href="<?php echo base_url('Marks/sectionWiseResult'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'sectionWiseResult') { echo "active"; } ?>">
                   <i class="far fa-circle nav-icon"></i>
                   <p>Section Wise Result</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="<?php echo base_url('Marks/pdfList'); ?>" class="nav-link <?php if($this->uri->segment(2) === 'pdfList') { echo "active"; } ?>">
+                  <i class="far fa-circle nav-icon"></i>
+                  <p>PDF List</p>
                 </a>
               </li>
             </ul>
